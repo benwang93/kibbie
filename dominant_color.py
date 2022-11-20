@@ -5,12 +5,15 @@ import cv2
 import numpy as np
 from skimage import io
 
+import time
+
+starttime = time.perf_counter()
+
 # Read image
-# im = cv2.imread("cats.png", cv2.IMREAD_COLOR)
-# img = cv2.resize(im, (0, 0), fx=0.2, fy=0.2)
-img = io.imread("cami.png")
-# img = io.imread("noodle.png")
-img = cv2.resize(img, (0, 0), fx=0.2, fy=0.2)
+# img = io.imread("cats.png")
+# img = io.imread("cami.png")
+img = io.imread("noodle.png")
+img = cv2.resize(img, (0, 0), fx=0.1, fy=0.1)
 
 pixels = np.float32(img.reshape(-1, 3))
 
@@ -22,6 +25,9 @@ _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, flags)
 _, counts = np.unique(labels, return_counts=True)
 
 dominant = palette[np.argmax(counts)]
+
+endtime = time.perf_counter()
+print(f"Duration: {(endtime - starttime) * 1000}ms")
 
 import matplotlib.pyplot as plt
 
@@ -44,3 +50,6 @@ ax1.set_title('Dominant colors')
 ax1.axis('off')
 # plt.show(fig)
 plt.show()
+
+cv2.imshow("Image resized", img)
+cv2.waitKey(0)
