@@ -10,9 +10,9 @@ import time
 starttime = time.perf_counter()
 
 # Read image
-# img = io.imread("cats.png")
-# img = io.imread("cami.png")
-img = io.imread("noodle.png")
+# img = io.imread("blob_demo/cats.png")
+# img = io.imread("blob_demo/cami.png")
+img = io.imread("blob_demo/noodle.png")
 img = cv2.resize(img, (0, 0), fx=0.1, fy=0.1)
 
 pixels = np.float32(img.reshape(-1, 3))
