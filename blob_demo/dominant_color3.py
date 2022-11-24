@@ -63,7 +63,7 @@ def plotDominantColors(img, sorted_colors):
     # plt.show()
 
     # Attempt to turn into CV2 image
-    # cv2.imshow("dominant", dom_patch)
+    cv2.imshow("dominant", dom_patch)
 
 def main():
     # define a video capture object
@@ -75,7 +75,8 @@ def main():
         ret, frame = vid.read()
 
         # Downsample for faster processing
-        img = cv2.resize(frame, (0, 0), fx=0.1, fy=0.1)
+        scale = 0.5 #0.1
+        img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
         quantized = quantizeColors(img)
 
