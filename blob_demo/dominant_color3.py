@@ -33,9 +33,9 @@ def plotDominantColors(img, unique, freq):
     for i in indices:
         bgr_color = unique[i]
         count = freq[i]
-        rgb_color = list(reversed(bgr_color))
+        # rgb_color = list(reversed(bgr_color))
         end_row = start_row + int(round(count / img.shape[1], 0))
-        dom_patch[start_row:end_row, :, :] = rgb_color
+        dom_patch[start_row:end_row, :, :] = bgr_color
 
         start_row = end_row
 
