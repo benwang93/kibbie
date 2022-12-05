@@ -1,4 +1,13 @@
-# Feeder demo
+"""
+Feeder demo
+
+Setup:
+- Connect Pi servo hat to DC power (9V, 4A)
+- Command servo to the neutral position via this program
+- Attach servo to feeder assembly such that servo neutral is when 2 paddles are perfectly vertical
+- Send "d" command to dispense food, "h" for help.
+
+""" 
 
 from adafruit_servokit import ServoKit
 import time
@@ -81,9 +90,6 @@ print("Loading side 1...")
 go_to_angle(ANGLE_DISPENSE_1)
 
 time.sleep(1.5)
-
-# print("Loading side 2...")
-# go_to_angle(90 - 360/5)
 
 # Now dispense food once
 print("Loading complete!")
