@@ -8,9 +8,16 @@ Setup:
 - Send any integer to command that angle, "h" for help.
 
 Angles:
+
 - Servo door
-  - Extended: 138 degrees
-  - Retracted: 5 degrees
+  - Extended: 163 degrees
+  - Retracted: 40 degrees
+
+- Dispenser
+  - Neutral: 90 degrees
+  - Delta: 72 degrees
+    - Dispense position 1: 18
+    - Dispense position 2: 162
 
 """ 
 
@@ -26,11 +33,11 @@ current_angle = 0   # Current servo angle
 def go_to_angle(target_angle):
     global current_angle
 
-    kit.servo[0].angle = target_angle+1
+    kit.servo[channel].angle = target_angle+1
     time.sleep(0.5)
-    kit.servo[0].angle = target_angle-1
+    kit.servo[channel].angle = target_angle-1
     time.sleep(0.3)
-    kit.servo[0].angle = target_angle
+    kit.servo[channel].angle = target_angle
     kit.servo[channel].angle = target_angle
     current_angle = target_angle
 
@@ -44,22 +51,25 @@ def print_help():
         "Commands:\n" +\
         "\n" +
         "  h        print this help\n" +\
+        "  c<int>   change to channel number\n"
         "  <int>    go to angle in degrees\n" +\
         "  p        print status (angle and food dispensed)\n" +\
         "  q        quit\n"
     )
 
 def print_status():
-    global current_angle, dispense_count
     print("Kibbie status:")
+    print(f"  Current channel: {channel}")
     print(f"  Current angle: {current_angle}")
     print("\n\n")
 
 # Initial setup
-kit = ServoKit(channels=16)
+NUM_CHANNELS = 16
+kit = ServoKit(channels=NUM_CHANNELS)
 
-kit.servo[channel].actuation_range = 180
-kit.servo[channel].set_pulse_width_range(500, 2500)
+for channel_num in range(NUM_CHANNELS):
+    kit.servo[channel_num].actuation_range = 180
+    kit.servo[channel_num].set_pulse_width_range(500, 2500)
 
 # Now dispense food once
 print("Loading complete!")
@@ -75,6 +85,12 @@ while True:
         print_status()
     elif command == "q":
         break
+    elif command[0] == "c":
+        try:
+            channel = int(command[1:])
+        except:
+            print(f"Invalid channel number '{command[1:]}'")
+        print(f"Current channel: {channel}")
     else:
         # Attempt to decode an angle
         try:
