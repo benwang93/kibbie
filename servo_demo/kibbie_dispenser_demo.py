@@ -96,7 +96,7 @@ for channel_num in range(NUM_CHANNELS_USED):
     current_angles.append(0)
 
 # Start with door closed
-go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_CLOSED)
+go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_OPEN)
 
 # We need authority in both directions, so 90 degrees is neutral
 print("Setting angle to neutral (90 degrees)")
