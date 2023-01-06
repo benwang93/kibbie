@@ -3,6 +3,7 @@ import cv2
 import time
 
 import lib.color_quantization as cq
+import lib.img_tools as img_tools
 
 ########################
 # Constants
@@ -43,6 +44,7 @@ class kibbie:
         # Timestamp of last frame - used to calculate FPS to display on debug image
         self.last_time_s = None
     
+
     # Presents image and overlays any masks
     def refresh_image(self):
         if self.img is None:
@@ -68,17 +70,11 @@ class kibbie:
 
         cv2.imshow("img", self.img)
         cv2.imshow("quantized", curr_frame)
-        
-    # Function to perform white balancing on image
-    # Source: https://stackoverflow.com/questions/46390779/automatic-white-balancing-with-grayworld-assumption
-    def white_balance(self, img):
-        result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-        avg_a = np.average(result[:, :, 1])
-        avg_b = np.average(result[:, :, 2])
-        result[:, :, 1] = result[:, :, 1] - ((avg_a - 128) * (result[:, :, 0] / 255.0) * 1.1)
-        result[:, :, 2] = result[:, :, 2] - ((avg_b - 128) * (result[:, :, 0] / 255.0) * 1.1)
-        result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
-        return result
+
+        height_px = curr_frame.shape[0]
+        cv2.moveWindow("img",       0, 1 * (height_px + 50))
+        cv2.moveWindow("quantized", 0, 2 * (height_px + 50))
+
 
     def main(self):
         # define a video capture object
@@ -100,7 +96,7 @@ class kibbie:
 
             # Perform white balance
             if self.config["enableWhiteBalance"]:
-                self.img = self.white_balance(self.img)
+                self.img = img_tools.white_balance(self.img)
 
             # Quantize image colors
             self.quantized = cq.quantizeColors(self.img)
@@ -112,9 +108,7 @@ class kibbie:
             unique,freq = cq.getDominantColors(self.quantized)
             cq.plotDominantColors(self.img, unique, freq)
             
-            # the 'q' button is set as the
-            # quitting button you may use any
-            # desired button of your choice
+            # Hit 'q' key to quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         
