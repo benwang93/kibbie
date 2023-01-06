@@ -14,7 +14,8 @@ import lib.color_quantization as cq
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
 # scale = 0.5 # For quality
-scale = 0.1 # For speed
+scale = 0.25
+# scale = 0.1 # For speed
 
 
 ########################
@@ -68,6 +69,16 @@ class kibbie:
         cv2.imshow("img", self.img)
         cv2.imshow("quantized", curr_frame)
         
+    # Function to perform white balancing on image
+    # Source: https://stackoverflow.com/questions/46390779/automatic-white-balancing-with-grayworld-assumption
+    def white_balance(self, img):
+        result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+        avg_a = np.average(result[:, :, 1])
+        avg_b = np.average(result[:, :, 2])
+        result[:, :, 1] = result[:, :, 1] - ((avg_a - 128) * (result[:, :, 0] / 255.0) * 1.1)
+        result[:, :, 2] = result[:, :, 2] - ((avg_b - 128) * (result[:, :, 0] / 255.0) * 1.1)
+        result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
+        return result
 
     def main(self):
         # define a video capture object
@@ -86,6 +97,16 @@ class kibbie:
 
             # Downsample for faster processing
             self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+
+            ###########################
+            # DEBUG Show white balanced img
+            wb_img = self.white_balance(self.img)
+            cv2.imshow("wb", wb_img)
+            quantized_wb = cq.quantizeColors(wb_img)
+            cv2.imshow("quantized_wb", quantized_wb)
+            unique,freq = cq.getDominantColors(quantized_wb)
+            cq.plotDominantColors(wb_img, unique, freq, img_name="dominant_wb")
+            ###########################
 
             # Quantize image colors
             self.quantized = cq.quantizeColors(self.img)

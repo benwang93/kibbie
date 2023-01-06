@@ -27,7 +27,7 @@ def getDominantColors(quantized):
 """
 Visualize unique colors in an image
 """
-def plotDominantColors(img, unique, freq):
+def plotDominantColors(img, unique, freq, img_name="dominant"):
     # Sort colors
     indices = np.argsort(freq)[::-1]
 
@@ -43,4 +43,4 @@ def plotDominantColors(img, unique, freq):
         start_row = end_row
 
     # Display dominant colors
-    cv2.imshow("dominant", dom_patch)
+    cv2.imshow(img_name, dom_patch)
