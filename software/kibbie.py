@@ -26,13 +26,13 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, configs) -> None:
+    def __init__(self, camera, config) -> None:
         self.camera = camera
 
         # Preprocess the configuration
-        for config in configs:
-            config["mask"] = [[x[0] * scale, x[1] * scale] for x in config["mask"]]
-        self.configs = configs
+        for i in range(len(config["cats"])):
+            config["cats"][i]["mask"] = [[x[0] * scale, x[1] * scale] for x in config["cats"][i]["mask"]]
+        self.config = config
 
         # Placeholder for current scaled frame from camera
         self.img = None
@@ -51,7 +51,7 @@ class kibbie:
         # Draw image
         curr_frame = self.quantized.copy()
 
-        for config in self.configs:
+        for config in self.config["cats"]:
             # Draw polygon masks
             # Polygon corner points coordinates
             pts = np.array(config["mask"], np.int32)
@@ -98,15 +98,9 @@ class kibbie:
             # Downsample for faster processing
             self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
-            ###########################
-            # DEBUG Show white balanced img
-            wb_img = self.white_balance(self.img)
-            cv2.imshow("wb", wb_img)
-            quantized_wb = cq.quantizeColors(wb_img)
-            cv2.imshow("quantized_wb", quantized_wb)
-            unique,freq = cq.getDominantColors(quantized_wb)
-            cq.plotDominantColors(wb_img, unique, freq, img_name="dominant_wb")
-            ###########################
+            # Perform white balance
+            if self.config["enableWhiteBalance"]:
+                self.img = self.white_balance(self.img)
 
             # Quantize image colors
             self.quantized = cq.quantizeColors(self.img)
@@ -134,15 +128,18 @@ class kibbie:
 # Main
 ########################
 if __name__=="__main__":
-    kb = kibbie(camera="software/images/white_background_low_light_both_cats.mp4", configs=[
-        {
-            "name": "Noodle",
-            # Use the "unscaled" coordinates from `camera_calibration.py`
-            "mask": [
-                [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
-            ],
-            "colorProfile": "TBD...",
-            "dispensesPerDay": 3,
-        },
-    ])
+    kb = kibbie(camera="software/images/white_background_low_light_both_cats.mp4", config={
+        "enableWhiteBalance": True,
+        "cats":[
+            {
+                "name": "Noodle",
+                # Use the "unscaled" coordinates from `camera_calibration.py`
+                "mask": [
+                    [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
+                ],
+                "colorProfile": "TBD...",
+                "dispensesPerDay": 3,
+            },
+        ],
+    })
     kb.main()
