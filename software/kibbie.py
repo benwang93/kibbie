@@ -1,7 +1,8 @@
+import numpy as np
 import cv2
 import time
 
-import lib.color_quantization as color
+import lib.color_quantization as cq
 
 
 def main():
@@ -26,9 +27,19 @@ def main():
         scale = 0.5 #0.1
         img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
-        quantized = color.quantizeColors(img)
+        quantized = cq.quantizeColors(img)
 
-        # Draw rectangles to crop
+        # Draw polygon masks
+        # Polygon corner points coordinates
+        pts = np.array([[25, 70], [25, 160], 
+                        [110, 200], [200, 160], 
+                        [200, 70], [110, 20]],
+                    np.int32)
+
+        pts = pts.reshape((-1, 1, 2))
+        
+        quantized = cv2.polylines(img=quantized, pts=[pts], 
+                            isClosed=True, color=(255, 255, 255), thickness=2)
         
         # Calculate FPS
         curr_time_s = time.time()
@@ -40,8 +51,8 @@ def main():
         cv2.imshow("img", img)
         cv2.imshow("quantized", quantized)
 
-        unique,freq = color.getDominantColors(quantized)
-        color.plotDominantColors(img, unique, freq)
+        unique,freq = cq.getDominantColors(quantized)
+        cq.plotDominantColors(img, unique, freq)
         
         # the 'q' button is set as the
         # quitting button you may use any
