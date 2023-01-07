@@ -60,6 +60,36 @@ class kibbie:
         self.width_px = 0
     
 
+    # Compute the masks for each cat, where:
+    # - Pixel location is within the mask polygon
+    # - Pixel color is withtin the HSV filtter for the cat
+    def update_cat_masks(self):
+        # Generate per-cat masks (intersection of polygon and color filter)
+        for i,cat in enumerate(self.config["cats"]):
+            # First filter by polygon
+            mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
+            cv2.drawContours(image=mask_shape, contours=[np.array([cat["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
+
+            # Then filter by cat color
+            mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
+
+            # Combine masks
+            self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
+
+            # Show mask for debug
+            debug_mask = self.masks[i].copy()
+            num_nonzero_px = cv2.countNonZero(debug_mask)
+            debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
+                org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+            debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {num_nonzero_px > cat["minPixelThreshold"]}',
+                org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+            win_name = f'mask-{cat["name"]}'
+            cv2.imshow(win_name, debug_mask)
+            cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
+
+
     # Presents image and overlays any masks
     def refresh_image(self):
         if self.img is None:
@@ -118,26 +148,7 @@ class kibbie:
             self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
             # Generate per-cat masks (intersection of polygon and color filter)
-            for i,cat in enumerate(self.config["cats"]):
-                # First filter by polygon
-                mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
-                cv2.drawContours(image=mask_shape, contours=[np.array([cat["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
-
-                # Then filter by cat color
-                mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
-
-                # Combine masks
-                self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
-
-                # Show mask for debug
-                debug_mask = self.masks[i].copy()
-                num_nonzero_px = cv2.countNonZero(debug_mask)
-                debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}   Detected: {num_nonzero_px > cat["minPixelThreshold"]}',
-                    org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
-                    color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
-                win_name = f'mask-{cat["name"]}'
-                cv2.imshow(win_name, debug_mask)
-                cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
+            self.update_cat_masks()
 
             # Display debug image
             self.refresh_image()
