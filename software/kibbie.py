@@ -36,8 +36,13 @@ class kibbie:
 
         # Preprocess the configuration
         for i,cat in enumerate(config["cats"]):
+            # Pre-scale config values
             config["cats"][i]["mask"] = [[int(x[0] * scale), int(x[1] * scale)] for x in cat["mask"]]
+            config["cats"][i]["minPixelThreshold"] = cat["minPixelThreshold"] * scale
+
+            # Initialize mask for each cat
             self.masks.append(None)
+        
         self.config = config
 
         # Placeholder for current scaled frame from camera
@@ -124,9 +129,14 @@ class kibbie:
                 # Combine masks
                 self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
 
-                # Show mask
+                # Show mask for debug
+                debug_mask = self.masks[i].copy()
+                num_nonzero_px = cv2.countNonZero(debug_mask)
+                debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}   Detected: {num_nonzero_px > cat["minPixelThreshold"]}',
+                    org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                    color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 win_name = f'mask-{cat["name"]}'
-                cv2.imshow(win_name, self.masks[i])
+                cv2.imshow(win_name, debug_mask)
                 cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
 
             # Display debug image
@@ -155,6 +165,8 @@ if __name__=="__main__":
                 "mask": [
                     [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
                 ],
+                # Number of pixels required for a cat to be "present", unscaled
+                "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
                 "lowerHSVThreshold": [0, 0, 0],
                 "upperHSVThreshold": [255, 255, 40],
@@ -166,6 +178,8 @@ if __name__=="__main__":
                 "mask": [
                     [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
                 ],
+                # Number of pixels required for a cat to be "present"
+                "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
                 "lowerHSVThreshold": [10, 130, 80],
                 "upperHSVThreshold": [20, 255, 220],
