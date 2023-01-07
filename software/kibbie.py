@@ -42,6 +42,14 @@ class kibbie:
 
             # Initialize mask for each cat
             self.masks.append(None)
+
+            # Find farthest left coordinate for debug print
+            farthestLeftCoordinate = [99999999999, 0] # Something very far left
+            for point in cat["mask"]:
+                if point[0] < farthestLeftCoordinate[0]:
+                    farthestLeftCoordinate = point
+            assert farthestLeftCoordinate != [99999999999, 0], "Could not find farthest left coordinate of mask for debug print"
+            config["cats"][i]["farthestLeftCoordinate"] = farthestLeftCoordinate
         
         self.config = config
 
@@ -106,6 +114,9 @@ class kibbie:
         
             curr_frame = cv2.polylines(img=curr_frame, pts=[pts], 
                                 isClosed=True, color=(255, 255, 255), thickness=2)
+            
+            # For debug print the cat's name over their polygon at the farthest left coordinate
+            curr_frame = cv2.putText(img=curr_frame, text=config["name"], org=[config["farthestLeftCoordinate"][0], config["farthestLeftCoordinate"][1] + 20], fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
         
         # Calculate FPS
         curr_time_s = time.time()
@@ -174,7 +185,8 @@ if __name__=="__main__":
                 "name": "Noodle",
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": [
-                    [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
+                    # [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
+                    [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
                 ],
                 # Number of pixels required for a cat to be "present", unscaled
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
@@ -187,7 +199,8 @@ if __name__=="__main__":
                 "name": "Cami",
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": [
-                    [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
+                    # [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
+                    [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
                 ],
                 # Number of pixels required for a cat to be "present"
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
