@@ -20,9 +20,11 @@ lower_bound_hsv = [0, 0, 0]
 upper_bound_hsv = [50, 255, 40]
 
 # Cami
-# R: [80, 180]
-# G: [60, 130]
-# B: [20, 60]
+# H: [10, 20]
+# S: [150, 255]
+# V: [80, 180]
+lower_bound_hsv = [10, 150, 80]
+upper_bound_hsv = [20, 255, 180]
 
 def filter_and_show(name, col, frame):
     # Scale down image

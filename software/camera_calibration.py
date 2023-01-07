@@ -143,5 +143,6 @@ class camera_calibration:
 ########################
 if __name__=="__main__":
     # cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")
-    cal = camera_calibration(camera="software/images/noodle.png")
+    # cal = camera_calibration(camera="software/images/noodle.png")
+    cal = camera_calibration(camera="software/images/cami.png")
     cal.main()
