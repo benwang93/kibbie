@@ -22,10 +22,15 @@ scale = 0.5
 ########################
 class camera_calibration:
     # camera: string filepath or int representing video capture device index
-    def __init__(self, camera) -> None:
+    def __init__(self, camera=None, image_file=None) -> None:
         self.mask = []
         self.camera = camera
+        self.image_file = image_file
         self.img = None
+
+        # Mouse coordinates for displaying HSV
+        self.mouse_x = 0
+        self.mouse_y = 0
     
     # Presents image and overlays any masks
     def refresh_image(self):
@@ -34,6 +39,31 @@ class camera_calibration:
         
         # Draw image
         curr_frame = self.img.copy()
+
+        # Grab HSV at mouse coordinates
+        pixel = curr_frame[self.mouse_y][self.mouse_x]
+        hsv_pixel = list(cv2.cvtColor(np.array([[pixel]]), cv2.COLOR_BGR2HSV)[0][0])
+
+        curr_frame = cv2.putText(
+            img=curr_frame,
+            text=f"RGB: {list(pixel)}",
+            org=(5, 40),
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=0.5,
+            color=(255,255,255),
+            thickness=1,
+            lineType=cv2.LINE_AA
+        )
+        curr_frame = cv2.putText(
+            img=curr_frame,
+            text=f"HSV: {hsv_pixel}",
+            org=(5, 60),
+            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale=0.5,
+            color=(255,255,255),
+            thickness=1,
+            lineType=cv2.LINE_AA
+        )
 
         if len(self.mask) > 0:
             # Draw polygon masks
@@ -54,15 +84,27 @@ class camera_calibration:
         if event == cv2.EVENT_LBUTTONDOWN:
             self.mask.append([x,y])
             print(f"Registered click at ({x}, {y}). masks is now: {self.mask}")
-            self.refresh_image()
+        
+        # Always update mouse coordinates
+        self.mouse_x = x
+        self.mouse_y = y
+
+        # Redraw frame
+        self.refresh_image()
 
 
     def main(self):
         # define a video capture object
-        vid = cv2.VideoCapture(self.camera)
-
-        # Get only the first video frame
-        ret, frame = vid.read()
+        if self.camera:
+            vid = cv2.VideoCapture(self.camera)
+                
+            # Get only the first video frame
+            ret, frame = vid.read()
+        elif self.image_file:
+            frame = cv2.imread(self.image_file)
+        else:
+            print("No input specified")
+            return
 
         # Exit once video finishes
         if not ret:
@@ -100,5 +142,6 @@ class camera_calibration:
 # Main
 ########################
 if __name__=="__main__":
-    cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")
+    # cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")
+    cal = camera_calibration(camera="software/images/noodle.png")
     cal.main()

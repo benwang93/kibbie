@@ -9,7 +9,21 @@ import numpy as np
   
 import lib.img_tools as img_tools
 scale = 0.1
-  
+
+# Color calibration
+
+# Noodle
+# H: [0, 50]
+# S: [0, 255]
+# V: [0, 40]
+lower_bound_hsv = [0, 0, 0]
+upper_bound_hsv = [50, 255, 40]
+
+# Cami
+# R: [80, 180]
+# G: [60, 130]
+# B: [20, 60]
+
 def filter_and_show(name, col, frame):
     # Scale down image
     frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
@@ -21,8 +35,8 @@ def filter_and_show(name, col, frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
       
     # Threshold of blue in HSV space
-    lower_blue = np.array([60, 35, 140])
-    upper_blue = np.array([180, 255, 255])
+    lower_blue = np.array(lower_bound_hsv) # np.array([60, 35, 140])
+    upper_blue = np.array(upper_bound_hsv) # np.array([180, 255, 255])
   
     # preparing the mask to overlay
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
