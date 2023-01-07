@@ -1,6 +1,13 @@
 """
 Demo to filter color with OpenCV
 
+Color calibration instructions:
+1. Open `camera_calibration.py`
+2. Change the filename at the very bottom to open an image of the target
+3. Mouse around to find the lower and uppwer bound of H, S, and V values
+4. Enter those as the `lower_bound_hsv` and `upper_bound_hsv` values in this file
+5. Run this script to preview the selection
+
 Source: https://www.geeksforgeeks.org/filter-color-with-opencv/
 """
 
@@ -13,18 +20,21 @@ scale = 0.1
 # Color calibration
 
 # Noodle
+# Noodle is dark, so we'll take any hue and any saturation, as long as the value is close to 0.
 # H: [0, 50]
 # S: [0, 255]
 # V: [0, 40]
 lower_bound_hsv = [0, 0, 0]
-upper_bound_hsv = [50, 255, 40]
+upper_bound_hsv = [255, 255, 40]
 
 # Cami
+# Cami is orange-ish in color, so hue is the main factor. She's also fairly saturated and bright in value (especially vs Noodle).
 # H: [10, 20]
 # S: [150, 255]
 # V: [80, 180]
-lower_bound_hsv = [10, 150, 80]
-upper_bound_hsv = [20, 255, 180]
+lower_bound_hsv = [10, 130, 80]
+upper_bound_hsv = [20, 255, 220]
+
 
 def filter_and_show(name, col, frame):
     # Scale down image
@@ -37,8 +47,8 @@ def filter_and_show(name, col, frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
       
     # Threshold of blue in HSV space
-    lower_blue = np.array(lower_bound_hsv) # np.array([60, 35, 140])
-    upper_blue = np.array(upper_bound_hsv) # np.array([180, 255, 255])
+    lower_blue = np.array(lower_bound_hsv)
+    upper_blue = np.array(upper_bound_hsv)
   
     # preparing the mask to overlay
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
@@ -57,9 +67,9 @@ def filter_and_show(name, col, frame):
     cv2.imshow(frame_win, frame)
     cv2.imshow(mask_win, mask)
     cv2.imshow(result_win, result)
-    cv2.moveWindow(frame_win,  col * width_px, 0 * (height_px + 50))
-    cv2.moveWindow(mask_win,   col * width_px, 1 * (height_px + 50))
-    cv2.moveWindow(result_win, col * width_px, 2 * (height_px + 50))
+    cv2.moveWindow(frame_win,  col * width_px, 0 * (height_px + 25))
+    cv2.moveWindow(mask_win,   col * width_px, 1 * (height_px + 25))
+    cv2.moveWindow(result_win, col * width_px, 2 * (height_px + 25))
   
 
 # Show all 3 images side by side
