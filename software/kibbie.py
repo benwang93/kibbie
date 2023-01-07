@@ -30,19 +30,29 @@ class kibbie:
     def __init__(self, camera, config) -> None:
         self.camera = camera
 
+        # Store per-cat masks here (mask polygon AND color in range)
+        # Resulting white pixels mean that the color matched the cat and in the region of interest
+        self.masks = []
+
         # Preprocess the configuration
-        for i in range(len(config["cats"])):
-            config["cats"][i]["mask"] = [[x[0] * scale, x[1] * scale] for x in config["cats"][i]["mask"]]
+        for i,cat in enumerate(config["cats"]):
+            config["cats"][i]["mask"] = [[int(x[0] * scale), int(x[1] * scale)] for x in cat["mask"]]
+            self.masks.append(None)
         self.config = config
 
         # Placeholder for current scaled frame from camera
         self.img = None
+        self.hsv_img = None
 
         # Placeholder for current scaled and quantized frame
         self.quantized = None
 
         # Timestamp of last frame - used to calculate FPS to display on debug image
         self.last_time_s = None
+
+        # Cache dimensions of scaled image
+        self.height_px = 0
+        self.width_px = 0
     
 
     # Presents image and overlays any masks
@@ -51,7 +61,7 @@ class kibbie:
             return
         
         # Draw image
-        curr_frame = self.quantized.copy()
+        curr_frame = self.img.copy()
 
         for config in self.config["cats"]:
             # Draw polygon masks
@@ -66,14 +76,13 @@ class kibbie:
         curr_time_s = time.time()
         fps = 1 / (curr_time_s - self.last_time_s)
         self.last_time_s = curr_time_s
-        curr_frame = cv2.putText(img=curr_frame, text=f"FPS: {fps:.2f}", org=(5, 20), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+        curr_frame = cv2.putText(img=curr_frame, text=f"FPS: {fps:.2f}", org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
 
         cv2.imshow("img", self.img)
         cv2.imshow("quantized", curr_frame)
 
-        height_px = curr_frame.shape[0]
-        cv2.moveWindow("img",       0, 1 * (height_px + 50))
-        cv2.moveWindow("quantized", 0, 2 * (height_px + 50))
+        cv2.moveWindow("img",       0, 0 * (self.height_px + 25))
+        cv2.moveWindow("quantized", 0, 1 * (self.height_px + 25))
 
 
     def main(self):
@@ -94,19 +103,34 @@ class kibbie:
             # Downsample for faster processing
             self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
+            self.height_px = self.img.shape[0]
+            self.width_px = self.img.shape[1]
+
             # Perform white balance
             if self.config["enableWhiteBalance"]:
                 self.img = img_tools.white_balance(self.img)
+            
+            self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
-            # Quantize image colors
-            self.quantized = cq.quantizeColors(self.img)
+            # Generate per-cat masks (intersection of polygon and color filter)
+            for i,cat in enumerate(self.config["cats"]):
+                # First filter by polygon
+                mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
+                cv2.drawContours(image=mask_shape, contours=[np.array([cat["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
+
+                # Then filter by cat color
+                mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
+
+                # Combine masks
+                self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
+
+                # Show mask
+                win_name = f'mask-{cat["name"]}'
+                cv2.imshow(win_name, self.masks[i])
+                cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
 
             # Display debug image
             self.refresh_image()
-
-            # Compute dominant colors
-            unique,freq = cq.getDominantColors(self.quantized)
-            cq.plotDominantColors(self.img, unique, freq)
             
             # Hit 'q' key to quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -131,7 +155,20 @@ if __name__=="__main__":
                 "mask": [
                     [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
                 ],
-                "colorProfile": "TBD...",
+                # Test color filter HSV thresholds using blue_filter.py first
+                "lowerHSVThreshold": [0, 0, 0],
+                "upperHSVThreshold": [255, 255, 40],
+                "dispensesPerDay": 3,
+            },
+            {
+                "name": "Cami",
+                # Use the "unscaled" coordinates from `camera_calibration.py`
+                "mask": [
+                    [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
+                ],
+                # Test color filter HSV thresholds using blue_filter.py first
+                "lowerHSVThreshold": [10, 130, 80],
+                "upperHSVThreshold": [20, 255, 220],
                 "dispensesPerDay": 3,
             },
         ],
