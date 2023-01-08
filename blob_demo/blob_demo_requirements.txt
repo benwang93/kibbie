@@ -1,4 +1,0 @@
-opencv-python
-adafruit-circuitpython-servokit
-matplotlib
-scikit-image

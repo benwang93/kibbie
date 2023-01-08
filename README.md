@@ -4,8 +4,13 @@ Automated kibble dispenser
 
 ## Setup
 
+### Raspberry Pi (embedded)
 1. Raspberry Pi with Raspian
-2. Install required python packages
+2. Install required python packages by running `setup_raspberrypi.sh`
+
+### PC (development)
+
+Run `setup_desktop.sh` to set up virtualenv and install development packages.
 
 ### Software
 
