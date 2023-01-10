@@ -19,6 +19,12 @@ scale = 0.25
 # scale = 0.1 # For speed
 
 
+# Masks for left and right areas
+# Use the "unscaled" coordinates from `camera_calibration.py`
+MASK_REGION_LEFT = [[676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]] # "Noodle's side"
+MASK_REGION_RIGHT = [[630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]]                                    # "Cami's side"
+
+
 ########################
 # Main class
 ########################
@@ -184,10 +190,7 @@ if __name__=="__main__":
             {
                 "name": "Noodle",
                 # Use the "unscaled" coordinates from `camera_calibration.py`
-                "mask": [
-                    # [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
-                    [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
-                ],
+                "mask": MASK_REGION_LEFT,
                 # Number of pixels required for a cat to be "present", unscaled
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
@@ -198,10 +201,7 @@ if __name__=="__main__":
             {
                 "name": "Cami",
                 # Use the "unscaled" coordinates from `camera_calibration.py`
-                "mask": [
-                    # [630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]
-                    [676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]
-                ],
+                "mask": MASK_REGION_RIGHT,
                 # Number of pixels required for a cat to be "present"
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
