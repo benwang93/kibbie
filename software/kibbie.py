@@ -76,6 +76,7 @@ class kibbie:
 
         # Initialize servo controller
         self.servo = servo.kibbie_servo_utils()
+        self.servo.init_servos()
         self.servo.print_help()
     
 

@@ -12,14 +12,14 @@ import time
 if IS_RASPBERRY_PI:
     from adafruit_servokit import ServoKit
 else:
-    # Stub out ServoKit
+    # Stub out ServoKit for desktop development
     class Motor:
         def __init__(self):
             self.angle = 0.0
             self.actuation_range = 180
         
-        def set_pulse_width_range(self, range):
-            print(f"Set pulse width range to {range}")
+        def set_pulse_width_range(self, min, max):
+            print(f"Set pulse width range to ({min}, {max})")
     class ServoKit:
         def __init__(self, channels):
             self.servo = [Motor() for _ in range(channels)]
@@ -69,7 +69,7 @@ class kibbie_servo_utils:
         print(
             "\n" + \
             "==============\n" + \
-            "Kibbie console\n" + \
+            "Kibbie\n" + \
             "==============\n" + \
             "\n" +\
             "Commands:\n" +\
@@ -111,21 +111,35 @@ class kibbie_servo_utils:
             # Track per-servo angles
             self.current_angles.append(0)
 
-        # Start with door closed
+        # Start with door open (in case food falls as servos initialize)
         self.go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_OPEN)
 
-        # We need authority in both directions, so 90 degrees is neutral
-        print("Setting angle to neutral (90 degrees)")
+        # Initial prompt for whether the initialization sequence should be run
+        init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
+        if init_cmd == "Y":
+            # We need authority in both directions, so 90 degrees is neutral
+            print("Setting angle to neutral (90 degrees)")
+            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_NEUTRAL)
 
-        # In order to reduce motor chatter, we need to always overshoot the angle, wait a bit, then go to the desired angle
-        self.go_to_angle(CHANNEL_DISPENSER, ANGLE_NEUTRAL)
+            # Wait for food to be loaded
+            print("90 degrees achieved! Please pour food in")
+            _ = input("\nHit enter to continue")
 
-        # Wait for food to be loaded
-        print("90 degrees achieved! Please pour food in")
-        _ = input("Hit enter to continue")
+            # Load food into side 2 by moving paddles to side 1
+            print("Loading side 2...")
+            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_1)
+            time.sleep(1.5)
 
-        # Now we need to load food into the feeder. Do this by turning in either direction enough to load the paddles, but not enough to dispense
+        # Now turn to side 2 to load side 1 with food
         print("Loading side 1...")
-        self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_1)
-
+        self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_2)
         time.sleep(1.5)
+
+        # Now give operator a chance to empty the tray back into the hopper
+        _ = input("\nDispenser loaded. Please empty the food tray back into the hopper and hit Enter to continue.")
+
+        # Close the door
+        print("Closing the door in 5 seconds...")
+        time.sleep(5.0)
+        print("Closing the door...")
+        self.go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_CLOSED)
