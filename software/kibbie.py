@@ -74,6 +74,9 @@ class kibbie:
         self.height_px = 0
         self.width_px = 0
 
+        # Variables for tracking state of cats in camera
+        self.mask_has_cat = [False]*servo.NUM_CHANNELS_USED
+
         # Initialize servo controller
         self.servo = servo.kibbie_servo_utils()
         self.servo.init_servos()
@@ -90,24 +93,42 @@ class kibbie:
             mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
             cv2.drawContours(image=mask_shape, contours=[np.array([cat["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
 
+            # TODO: Iterate over all cats in each region to check for all cats (some operations require 0 or 1 cats)
             # Then filter by cat color
             mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
 
             # Combine masks
             self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
 
+            # Check for cat
+            num_nonzero_px = cv2.countNonZero(self.masks[i])
+            self.mask_has_cat[i] = (num_nonzero_px > cat["minPixelThreshold"])
+
             # Show mask for debug
             debug_mask = self.masks[i].copy()
-            num_nonzero_px = cv2.countNonZero(debug_mask)
             debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
                 org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
                 color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
-            debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {num_nonzero_px > cat["minPixelThreshold"]}',
+            debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_cat[i]}',
                 org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
                 color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
             win_name = f'mask-{cat["name"]}'
             cv2.imshow(win_name, debug_mask)
             cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
+
+
+    # Check if there are any servo actions to perform
+    # Includes door open/close and scheduled dispenser checks
+    def check_and_operate_servos(self):
+        # Check each region and perform door and dispenser actions
+        for i,cat in enumerate(self.config["cats"]):
+            # Check for cat
+            if self.mask_has_cat[i]:
+                if self.servo.go_to_angle(cat["door_servo_channel"], servo.ANGLE_DOOR_OPEN):
+                    print(f'Opening door for {cat["name"]}')
+            else:
+                if self.servo.go_to_angle(cat["door_servo_channel"], servo.ANGLE_DOOR_CLOSED):
+                    print(f'Closing door for {cat["name"]}')
 
 
     # Presents image and overlays any masks
@@ -141,7 +162,7 @@ class kibbie:
 
         cv2.moveWindow("img",       0, 0 * (self.height_px + 25))
         cv2.moveWindow("quantized", 0, 1 * (self.height_px + 25))
-
+    
 
     def main(self):
         # define a video capture object
@@ -173,6 +194,10 @@ class kibbie:
             # Generate per-cat masks (intersection of polygon and color filter)
             self.update_cat_masks()
 
+            # Check if there are any servo actions to perform
+            # Includes door open/close and scheduled dispenser checks
+            self.check_and_operate_servos()
+
             # Display debug image
             self.refresh_image()
             
@@ -203,6 +228,9 @@ if __name__=="__main__":
                 "lowerHSVThreshold": [0, 0, 0],
                 "upperHSVThreshold": [255, 255, 40],
                 "dispensesPerDay": 3,
+                # Servo configuration
+                "door_servo_channel": servo.CHANNEL_DOOR_LEFT,
+                "dispenser_servo_channel": servo.CHANNEL_DISPENSER_LEFT,
             },
             {
                 "name": "Cami",
@@ -214,6 +242,9 @@ if __name__=="__main__":
                 "lowerHSVThreshold": [10, 130, 80],
                 "upperHSVThreshold": [20, 255, 220],
                 "dispensesPerDay": 3,
+                # Servo configuration
+                "door_servo_channel": servo.CHANNEL_DOOR_RIGHT,
+                "dispenser_servo_channel": servo.CHANNEL_DISPENSER_RIGHT,
             },
         ],
     })

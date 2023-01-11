@@ -32,9 +32,11 @@ else:
 
 # Servo channel definitions
 NUM_CHANNELS = 16
-NUM_CHANNELS_USED = 2
-CHANNEL_DOOR = 0
-CHANNEL_DISPENSER = 1
+NUM_CHANNELS_USED = 4
+CHANNEL_DOOR_LEFT = 0
+CHANNEL_DISPENSER_LEFT = 1
+CHANNEL_DOOR_RIGHT = 2
+CHANNEL_DISPENSER_RIGHT = 3
 
 # Dispenser angle definitions
 ANGLE_NEUTRAL = 90
@@ -56,7 +58,12 @@ class kibbie_servo_utils:
         # Insatnce of ServoKit to perform controls
         self.kit = ServoKit(channels=NUM_CHANNELS)
 
+    # Return true if the servo moved
     def go_to_angle(self, channel, target_angle):
+        # Check if no movement was needed
+        if target_angle == self.current_angles[channel]:
+            return False
+        
         self.kit.servo[channel].angle = target_angle+1
         time.sleep(1)
         self.kit.servo[channel].angle = target_angle-1
@@ -64,6 +71,10 @@ class kibbie_servo_utils:
         self.kit.servo[channel].angle = target_angle
 
         self.current_angles[channel] = target_angle
+
+        print(f"Moved servo channel {channel} to {target_angle}")
+        return True
+    
 
     def print_help(self):
         print(
@@ -112,14 +123,16 @@ class kibbie_servo_utils:
             self.current_angles.append(0)
 
         # Start with door open (in case food falls as servos initialize)
-        self.go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_OPEN)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_OPEN)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_OPEN)
 
         # Initial prompt for whether the initialization sequence should be run
         init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
         if init_cmd == "Y":
             # We need authority in both directions, so 90 degrees is neutral
             print("Setting angle to neutral (90 degrees)")
-            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_NEUTRAL)
+            self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
+            self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
 
             # Wait for food to be loaded
             print("90 degrees achieved! Please pour food in")
@@ -127,12 +140,14 @@ class kibbie_servo_utils:
 
             # Load food into side 2 by moving paddles to side 1
             print("Loading side 2...")
-            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_1)
+            self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
+            self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
             time.sleep(1.5)
 
         # Now turn to side 2 to load side 1 with food
         print("Loading side 1...")
-        self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_2)
+        self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
+        self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
         time.sleep(1.5)
 
         # Now give operator a chance to empty the tray back into the hopper
@@ -142,4 +157,5 @@ class kibbie_servo_utils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.go_to_angle(CHANNEL_DOOR, ANGLE_DOOR_CLOSED)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_CLOSED)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_CLOSED)
