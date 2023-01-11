@@ -4,6 +4,7 @@ import time
 
 import lib.color_quantization as cq
 import lib.img_tools as img_tools
+import lib.kibbie_servo_utils as servo
 
 ########################
 # Constants
@@ -72,6 +73,10 @@ class kibbie:
         # Cache dimensions of scaled image
         self.height_px = 0
         self.width_px = 0
+
+        # Initialize servo controller
+        self.servo = servo.kibbie_servo_utils()
+        self.servo.print_help()
     
 
     # Compute the masks for each cat, where:
