@@ -16,9 +16,9 @@ import time
 
 # Servo channel definitions
 NUM_CHANNELS = 16
-NUM_CHANNELS_USED = 2
+NUM_CHANNELS_USED = 16
 CHANNEL_DOOR = 0
-CHANNEL_DISPENSER = 1
+CHANNEL_DISPENSER = 4
 
 # Dispenser angle definitions
 ANGLE_NEUTRAL = 90
