@@ -9,7 +9,7 @@ IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 
-SKIP_INIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
+SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
 
 import time
 
@@ -70,13 +70,15 @@ class kibbie_servo_utils:
         if target_angle == self.current_angles[channel]:
             return False
         
-        self.kit.servo[channel].angle = target_angle+1
-        time.sleep(1)
-        self.kit.servo[channel].angle = target_angle-1
-        time.sleep(1)
-        self.kit.servo[channel].angle = target_angle
+        # For development only, to speed up program
+        if not SKIP_SERVO_WAIT:
+            self.kit.servo[channel].angle = target_angle+1
+            time.sleep(1)
+            self.kit.servo[channel].angle = target_angle-1
+            time.sleep(1)
+            self.kit.servo[channel].angle = target_angle
 
-        self.current_angles[channel] = target_angle
+            self.current_angles[channel] = target_angle
 
         print(f"Moved servo channel {channel} to {target_angle}")
         return True
@@ -128,8 +130,8 @@ class kibbie_servo_utils:
             # Track per-servo angles
             self.current_angles.append(0)
 
-        # For development only, to speed up startup
-        if SKIP_INIT:
+        # For development only, to speed up program
+        if SKIP_SERVO_WAIT:
             return
         
         # Start with door open (in case food falls as servos initialize)

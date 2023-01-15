@@ -15,7 +15,8 @@ import cv2
 import numpy as np
   
 import lib.img_tools as img_tools
-scale = 0.1
+# scale = 0.1
+scale = 0.2
 
 # Color calibration
 
@@ -24,16 +25,26 @@ scale = 0.1
 # H: [0, 50]
 # S: [0, 255]
 # V: [0, 40]
-lower_bound_hsv = [0, 0, 0]
-upper_bound_hsv = [255, 255, 40]
+# lower_bound_hsv = [0, 0, 0]         # White background
+# upper_bound_hsv = [255, 255, 40]    # White background
+
+# This one seems a bit too generous - gets cami's shadow
+# lower_bound_hsv = [0, 60, 0]         # Gray background
+# upper_bound_hsv = [255, 255, 140]    # gray background
+
+# Target black spots on Noodle:
+lower_bound_hsv = [0, 60, 0]        # Gray background
+upper_bound_hsv = [255, 255, 50]    # gray background
 
 # Cami
 # Cami is orange-ish in color, so hue is the main factor. She's also fairly saturated and bright in value (especially vs Noodle).
 # H: [10, 20]
 # S: [150, 255]
 # V: [80, 180]
-lower_bound_hsv = [10, 130, 80]
-upper_bound_hsv = [20, 255, 220]
+# lower_bound_hsv = [10, 130, 80]     # White background
+# upper_bound_hsv = [20, 255, 220]    # White background
+# lower_bound_hsv = [0, 60, 120]      # Gray background
+# upper_bound_hsv = [10, 110, 240]    # gray background
 
 
 def filter_and_show(name, col, frame):
@@ -73,9 +84,9 @@ def filter_and_show(name, col, frame):
   
 
 # Show all 3 images side by side
-filter_and_show("cami", 0, cv2.imread('software/images/cami.png'))
-filter_and_show("noodle", 1, cv2.imread('software/images/noodle.png'))
-filter_and_show("empty", 2, cv2.imread('software/images/empty.png'))
+filter_and_show("cami", 0, cv2.imread('software/images/cami-gray_background.png'))
+filter_and_show("noodle", 1, cv2.imread('software/images/noodle-gray_background.png'))
+filter_and_show("empty", 2, cv2.imread('software/images/empty-gray_background.png'))
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()

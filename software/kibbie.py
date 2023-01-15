@@ -22,8 +22,12 @@ scale = 0.25
 
 # Masks for left and right areas
 # Use the "unscaled" coordinates from `camera_calibration.py`
-MASK_REGION_LEFT = [[676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]] # "Noodle's side"
-MASK_REGION_RIGHT = [[630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]]                                    # "Cami's side"
+# White background video:
+# MASK_REGION_LEFT = [[676.0, 480.0], [680.0, 88.0], [752.0, 14.0], [1006.0, 16.0], [1102.0, 128.0], [1108.0, 372.0], [950.0, 408.0], [946.0, 482.0]] # "Noodle's side"
+# MASK_REGION_RIGHT = [[630.0, 478.0], [314.0, 470.0], [312.0, 382.0], [84.0, 370.0], [68.0, 52.0], [630.0, 26.0]]                                    # "Cami's side"
+# Gray background video on actual kibbie HW:
+MASK_REGION_RIGHT = [[316.0, 378.0], [326.0, 26.0], [18.0, 30.0], [22.0, 286.0], [122.0, 286.0], [140.0, 364.0]]
+MASK_REGION_LEFT = [[356.0, 376.0], [350.0, 20.0], [626.0, 22.0], [630.0, 296.0], [550.0, 302.0], [534.0, 372.0]]
 
 
 ########################
@@ -108,11 +112,18 @@ class kibbie:
 
             # Show mask for debug
             debug_mask = self.masks[i].copy()
+
+            # Make a green image to display if cat detected
+            if self.mask_has_cat[i]:
+                debug_mask_bg = np.zeros(self.img.shape)
+                debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=debug_mask_bg.shape[:2], color=(0,255,0), thickness=-1)
+                debug_mask = cv2.bitwise_and(debug_mask_bg, debug_mask_bg, mask=debug_mask)
+
             debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
-                org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
                 color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
             debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_cat[i]}',
-                org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
                 color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
             win_name = f'mask-{cat["name"]}'
             cv2.imshow(win_name, debug_mask)
@@ -234,8 +245,8 @@ if __name__=="__main__":
                 # Number of pixels required for a cat to be "present", unscaled
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [0, 0, 0],
-                "upperHSVThreshold": [255, 255, 40],
+                "lowerHSVThreshold": [0, 60, 0],
+                "upperHSVThreshold": [255, 255, 50],
                 "dispensesPerDay": 3,
                 # Servo configuration
                 "dispenser_servo_channel": servo.CHANNEL_DISPENSER_LEFT,
@@ -250,8 +261,8 @@ if __name__=="__main__":
                 # Number of pixels required for a cat to be "present"
                 "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [10, 130, 80],
-                "upperHSVThreshold": [20, 255, 220],
+                "lowerHSVThreshold": [0, 60, 120],
+                "upperHSVThreshold": [10, 110, 240],
                 "dispensesPerDay": 3,
                 # Servo configuration
                 "dispenser_servo_channel": servo.CHANNEL_DISPENSER_RIGHT,

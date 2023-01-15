@@ -5,6 +5,8 @@ Script to help calibrate the trapezoidal masks used for each half of the feeder.
 import numpy as np
 import cv2
 
+import lib.img_tools as img_tools
+
 ########################
 # Constants
 ########################
@@ -39,6 +41,9 @@ class camera_calibration:
         
         # Draw image
         curr_frame = self.img.copy()
+    
+        # Perform white balance
+        curr_frame = img_tools.white_balance(curr_frame)
 
         # Grab HSV at mouse coordinates
         pixel = curr_frame[self.mouse_y][self.mouse_x]
@@ -50,7 +55,7 @@ class camera_calibration:
             org=(5, 40),
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=0.5,
-            color=(255,255,255),
+            color=(0,0,255),
             thickness=1,
             lineType=cv2.LINE_AA
         )
@@ -60,7 +65,7 @@ class camera_calibration:
             org=(5, 60),
             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
             fontScale=0.5,
-            color=(255,255,255),
+            color=(0,0,255),
             thickness=1,
             lineType=cv2.LINE_AA
         )
@@ -142,7 +147,11 @@ class camera_calibration:
 # Main
 ########################
 if __name__=="__main__":
-    cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")
+    # cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")   # White background video
+    # cal = camera_calibration(camera="software/images/20230114-kibbie_feeder.avi")                 # Gray background video on actual kibbie HW
     # cal = camera_calibration(camera="software/images/noodle.png")
     # cal = camera_calibration(camera="software/images/cami.png")
+    # cal = camera_calibration(camera='software/images/cami-gray_background.png')
+    cal = camera_calibration(camera='software/images/noodle-gray_background.png')
+
     cal.main()
