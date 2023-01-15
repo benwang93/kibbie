@@ -116,7 +116,7 @@ class kibbie:
             # Make a green image to display if cat detected
             if self.mask_has_cat[i]:
                 debug_mask_bg = np.zeros(self.img.shape)
-                debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=debug_mask_bg.shape[:2], color=(0,255,0), thickness=-1)
+                debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=(debug_mask_bg.shape[1], debug_mask_bg.shape[0]), color=(0,255,0), thickness=-1)
                 debug_mask = cv2.bitwise_and(debug_mask_bg, debug_mask_bg, mask=debug_mask)
 
             debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
