@@ -166,6 +166,22 @@ class kibbie_servo_utils:
         self.dispense_count += 1
 
         print("Food dispensed!\n")
+    
+    # Helper function to block main thread until all servos have emptied their queues
+    def block_until_servos_done(self):
+        while True:
+            queues_empty = True
+            for queue in self.channel_queue:
+                if len(queue) > 0:
+                    queues_empty = False
+                    break
+            
+            if queues_empty:
+                return
+            
+            # Check again after some time
+            time.sleep(0.1)
+        
 
     # Initial setup
     def init_servos(self):
@@ -184,18 +200,18 @@ class kibbie_servo_utils:
             return
         
         # Start with door open (in case food falls as servos initialize)
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
-
-        # Wait for movment to finish
+        self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
+        self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
+        self.block_until_servos_done()
 
         # Initial prompt for whether the initialization sequence should be run
         init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
         if init_cmd == "Y":
             # We need authority in both directions, so 90 degrees is neutral
             print("Setting angle to neutral (90 degrees)")
-            self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
-            self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
+            self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
+            self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
+            self.block_until_servos_done()
 
             # Wait for food to be loaded
             print("90 degrees achieved! Please pour food in")
@@ -203,14 +219,16 @@ class kibbie_servo_utils:
 
             # Load food into side 2 by moving paddles to side 1
             print("Loading side 2...")
-            self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
-            self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
+            self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
+            self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
+            self.block_until_servos_done()
             time.sleep(1.5)
 
         # Now turn to side 2 to load side 1 with food
         print("Loading side 1...")
-        self.go_to_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
-        self.go_to_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
+        self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
+        self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
+        self.block_until_servos_done()
         time.sleep(1.5)
 
         # Now give operator a chance to empty the tray back into the hopper
@@ -220,5 +238,6 @@ class kibbie_servo_utils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)
+        self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
+        self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)
+        self.block_until_servos_done()
