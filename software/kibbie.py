@@ -137,10 +137,10 @@ class kibbie:
         for i,cat in enumerate(self.config["cats"]):
             # Check for cat
             if self.mask_has_cat[i]:
-                if self.servo.go_to_angle(cat["door_servo_channel"], cat["door_servo_angle_open"]):
+                if self.servo.queue_angle(cat["door_servo_channel"], cat["door_servo_angle_open"]):
                     print(f'Opening door for {cat["name"]}')
             else:
-                if self.servo.go_to_angle(cat["door_servo_channel"], cat["door_servo_angle_closed"]):
+                if self.servo.queue_angle(cat["door_servo_channel"], cat["door_servo_angle_closed"]):
                     print(f'Closing door for {cat["name"]}')
 
 
@@ -216,6 +216,9 @@ class kibbie:
 
             # Display debug image
             self.refresh_image()
+
+            # Run servos
+            self.servo.run_loop()
             
             # Hit 'q' key to quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
