@@ -16,8 +16,8 @@ import lib.kibbie_servo_utils as servo
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
 # scale = 0.5 # For quality
-# scale = 0.25
-scale = 0.1 # For speed
+scale = 0.25
+# scale = 0.1 # For speed
 
 
 # Masks for left and right areas
@@ -44,7 +44,9 @@ class kibbie:
         # Preprocess the configuration
         for i,cat in enumerate(config["cats"]):
             # Pre-scale config values
+            print(f'[{cat["name"]}] Before scaling mask: {cat["mask"]}')
             config["cats"][i]["mask"] = [[int(x[0] * scale), int(x[1] * scale)] for x in cat["mask"]]
+            print(f'[{cat["name"]}] After scaling mask: {cat["mask"]}')
             config["cats"][i]["minPixelThreshold"] = cat["minPixelThreshold"] * scale
 
             # Initialize mask for each cat
@@ -153,7 +155,10 @@ class kibbie:
         
         # Calculate FPS
         curr_time_s = time.time()
-        fps = 1 / (curr_time_s - self.last_time_s)
+        if (curr_time_s - self.last_time_s) > 0:
+            fps = 1 / (curr_time_s - self.last_time_s)
+        else:
+            fps = 0.0
         self.last_time_s = curr_time_s
         curr_frame = cv2.putText(img=curr_frame, text=f"FPS: {fps:.2f}", org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
 
@@ -216,8 +221,9 @@ class kibbie:
 ########################
 if __name__=="__main__":
     kb = kibbie(
-        # camera="software/images/white_background_low_light_both_cats.mp4",  # Playback for dev
-        camera=0,                                                           # Real camera
+        # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
+        camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
+        # camera=0,                                                               # Real camera
         config={
         "enableWhiteBalance": True,
         "cats":[

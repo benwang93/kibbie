@@ -7,6 +7,10 @@ For desktop development, set IS_RASPBERRY_PI to False
 # IS_RASPBERRY_PI = True # Raspberry Pi
 IS_RASPBERRY_PI = False # Desktop
 
+DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
+
+SKIP_INIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
+
 import time
 
 if IS_RASPBERRY_PI:
@@ -124,6 +128,10 @@ class kibbie_servo_utils:
             # Track per-servo angles
             self.current_angles.append(0)
 
+        # For development only, to speed up startup
+        if SKIP_INIT:
+            return
+        
         # Start with door open (in case food falls as servos initialize)
         self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
         self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
