@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-IS_RASPBERRY_PI = True # Raspberry Pi
-# IS_RASPBERRY_PI = False # Desktop
+# IS_RASPBERRY_PI = True # Raspberry Pi
+IS_RASPBERRY_PI = False # Desktop
 
 import time
 

@@ -16,8 +16,8 @@ import lib.kibbie_servo_utils as servo
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
 # scale = 0.5 # For quality
-scale = 0.25
-# scale = 0.1 # For speed
+# scale = 0.25
+scale = 0.1 # For speed
 
 
 # Masks for left and right areas
@@ -215,7 +215,10 @@ class kibbie:
 # Main
 ########################
 if __name__=="__main__":
-    kb = kibbie(camera="software/images/white_background_low_light_both_cats.mp4", config={
+    kb = kibbie(
+        # camera="software/images/white_background_low_light_both_cats.mp4",  # Playback for dev
+        camera=0,                                                           # Real camera
+        config={
         "enableWhiteBalance": True,
         "cats":[
             {
