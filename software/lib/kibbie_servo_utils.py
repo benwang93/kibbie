@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-# IS_RASPBERRY_PI = True # Raspberry Pi
-IS_RASPBERRY_PI = False # Desktop
+IS_RASPBERRY_PI = True # Raspberry Pi
+# IS_RASPBERRY_PI = False # Desktop
 
 import time
 
@@ -45,13 +45,11 @@ ANGLE_DISPENSE_1 = ANGLE_NEUTRAL - 360 / NUM_PADDLES
 ANGLE_DISPENSE_2 = ANGLE_NEUTRAL + 360 / NUM_PADDLES
 
 # Door angle definitions
-ANGLE_DOOR_RANGE = 162-40                                           # Range of door - should be same regardless of servo calibration
+ANGLE_DOOR_LEFT_OPEN = 40       # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_LEFT_CLOSED = 162    # Calibrated offset angle for fully extended (closed) door
 
-ANGLE_DOOR_OPEN_LEFT = 40                                           # Calibrated offset angle for fully retracted (open) door
-ANGLE_DOOR_CLOSED_LEFT = ANGLE_DOOR_OPEN_LEFT + ANGLE_DOOR_RANGE
-
-ANGLE_DOOR_CLOSED_RIGHT = 35                                        # Calibrated offset angle for fully extended (closed) door
-ANGLE_DOOR_OPEN_RIGHT = 162 
+ANGLE_DOOR_RIGHT_OPEN = 162     # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (closed) door
 
 class kibbie_servo_utils:
     def __init__(self):
@@ -127,8 +125,8 @@ class kibbie_servo_utils:
             self.current_angles.append(0)
 
         # Start with door open (in case food falls as servos initialize)
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_OPEN_LEFT)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_OPEN_RIGHT)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
 
         # Initial prompt for whether the initialization sequence should be run
         init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
@@ -161,5 +159,5 @@ class kibbie_servo_utils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_CLOSED_LEFT)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_CLOSED_RIGHT)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)

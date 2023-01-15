@@ -124,10 +124,10 @@ class kibbie:
         for i,cat in enumerate(self.config["cats"]):
             # Check for cat
             if self.mask_has_cat[i]:
-                if self.servo.go_to_angle(cat["door_servo_channel"], servo.ANGLE_DOOR_OPEN):
+                if self.servo.go_to_angle(cat["door_servo_channel"], cat["door_servo_angle_open"]):
                     print(f'Opening door for {cat["name"]}')
             else:
-                if self.servo.go_to_angle(cat["door_servo_channel"], servo.ANGLE_DOOR_CLOSED):
+                if self.servo.go_to_angle(cat["door_servo_channel"], cat["door_servo_angle_closed"]):
                     print(f'Closing door for {cat["name"]}')
 
 
@@ -229,8 +229,10 @@ if __name__=="__main__":
                 "upperHSVThreshold": [255, 255, 40],
                 "dispensesPerDay": 3,
                 # Servo configuration
-                "door_servo_channel": servo.CHANNEL_DOOR_LEFT,
                 "dispenser_servo_channel": servo.CHANNEL_DISPENSER_LEFT,
+                "door_servo_channel": servo.CHANNEL_DOOR_LEFT,
+                "door_servo_angle_open": servo.ANGLE_DOOR_LEFT_OPEN,
+                "door_servo_angle_closed": servo.ANGLE_DOOR_LEFT_CLOSED,
             },
             {
                 "name": "Cami",
@@ -243,8 +245,10 @@ if __name__=="__main__":
                 "upperHSVThreshold": [20, 255, 220],
                 "dispensesPerDay": 3,
                 # Servo configuration
-                "door_servo_channel": servo.CHANNEL_DOOR_RIGHT,
                 "dispenser_servo_channel": servo.CHANNEL_DISPENSER_RIGHT,
+                "door_servo_channel": servo.CHANNEL_DOOR_RIGHT,
+                "door_servo_angle_open": servo.ANGLE_DOOR_RIGHT_OPEN,
+                "door_servo_angle_closed": servo.ANGLE_DOOR_RIGHT_CLOSED,
             },
         ],
     })
