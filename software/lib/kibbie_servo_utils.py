@@ -45,9 +45,13 @@ ANGLE_DISPENSE_1 = ANGLE_NEUTRAL - 360 / NUM_PADDLES
 ANGLE_DISPENSE_2 = ANGLE_NEUTRAL + 360 / NUM_PADDLES
 
 # Door angle definitions
-ANGLE_DOOR_OPEN = 40                                    # Calibrated offset angle for fully retracted (open) door
-ANGLE_DOOR_RANGE = 162-40                               # Range of door - should be same regardless of servo calibration
-ANGLE_DOOR_CLOSED = ANGLE_DOOR_OPEN + ANGLE_DOOR_RANGE  # Calculated angle of closed door
+ANGLE_DOOR_RANGE = 162-40                                           # Range of door - should be same regardless of servo calibration
+
+ANGLE_DOOR_OPEN_LEFT = 40                                           # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_CLOSED_LEFT = ANGLE_DOOR_OPEN_LEFT + ANGLE_DOOR_RANGE
+
+ANGLE_DOOR_CLOSED_RIGHT = 35                                        # Calibrated offset angle for fully extended (closed) door
+ANGLE_DOOR_OPEN_RIGHT = 162 
 
 class kibbie_servo_utils:
     def __init__(self):
@@ -102,11 +106,11 @@ class kibbie_servo_utils:
             print(f"  Current angle[{channel}]: {self.current_angles[channel]}")
         print(f"  Total dispenses: {self.dispense_count}")
 
-    def dispense_food(self):
-        if self.current_angles[CHANNEL_DISPENSER] == ANGLE_DISPENSE_1:
-            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_2)
+    def dispense_food(self, channel):
+        if self.current_angles[channel] == ANGLE_DISPENSE_1:
+            self.go_to_angle(channel, ANGLE_DISPENSE_2)
         else:
-            self.go_to_angle(CHANNEL_DISPENSER, ANGLE_DISPENSE_1)
+            self.go_to_angle(channel, ANGLE_DISPENSE_1)
         
         # Track number of dispenses
         self.dispense_count += 1
@@ -123,8 +127,8 @@ class kibbie_servo_utils:
             self.current_angles.append(0)
 
         # Start with door open (in case food falls as servos initialize)
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_OPEN)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_OPEN)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_OPEN_LEFT)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_OPEN_RIGHT)
 
         # Initial prompt for whether the initialization sequence should be run
         init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
@@ -157,5 +161,5 @@ class kibbie_servo_utils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_CLOSED)
-        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_CLOSED)
+        self.go_to_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_CLOSED_LEFT)
+        self.go_to_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_CLOSED_RIGHT)
