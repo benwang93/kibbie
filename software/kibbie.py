@@ -45,6 +45,11 @@ class kibbie:
         # Resulting white pixels mean that the color matched the cat and in the region of interest
         self.masks = []
 
+        # Track a filtered number of pixels per corral per cat to make door less sensitive
+        # Target something like 2s time constant?
+        self.filtered_pixels = []
+        self.filter_ratio = 0.95 # (every cycle, this fraction of new value will come from previous value)
+
         # Track door open/close state per corral
         self.corral_door_open = [False for _ in config["corrals"]]
 
@@ -61,6 +66,9 @@ class kibbie:
             for _ in config["cats"]:
                 cat_masks.append(None)
             self.masks.append(cat_masks)
+
+            # Initialize weighted average number of pixels per cat
+            self.filtered_pixels.append([0]*len(config["cats"]))
 
             # Find farthest left coordinate for debug print
             farthestLeftCoordinate = [99999999999, 0] # Something very far left
@@ -120,7 +128,16 @@ class kibbie:
 
                 # Check for cat
                 num_nonzero_px = cv2.countNonZero(self.masks[corral_idx][cat_idx])
-                cat_detected = (num_nonzero_px > corral["minPixelThreshold"])
+
+                # Perform filter
+                num_nonzero_px_filt = (
+                    self.filter_ratio * self.filtered_pixels[corral_idx][cat_idx] +
+                    (1 - self.filter_ratio) * num_nonzero_px
+                )
+                self.filtered_pixels[corral_idx][cat_idx] = num_nonzero_px_filt
+
+                # Cat detection logic
+                cat_detected = (num_nonzero_px_filt > corral["minPixelThreshold"])
                 if cat["name"] in corral["allowedCats"]:
                     cat_is_allowed = True
                     self.mask_has_allowed_cat[corral_idx] |= cat_detected
@@ -143,6 +160,9 @@ class kibbie:
 
                 debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
                     org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+                debug_mask = cv2.putText(img=debug_mask, text=f'# pixels filt: {self.filtered_pixels[corral_idx][cat_idx]:.1f} / {corral["minPixelThreshold"]:.0f}',
+                    org=(5, int(self.height_px - scale * 20 - 5)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_allowed_cat[corral_idx]}',
                     org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
