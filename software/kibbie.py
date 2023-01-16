@@ -421,7 +421,7 @@ if __name__=="__main__":
                     "name": "Noodle",
                     # Test color filter HSV thresholds using blue_filter.py first
                     "lowerHSVThreshold": [0, 0, 0],
-                    "upperHSVThreshold": [255, 255, 50],
+                    "upperHSVThreshold": [255, 255, 80],
                 },
                 {
                     "name": "Cami",
@@ -437,7 +437,7 @@ if __name__=="__main__":
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_LEFT,
                     # Number of pixels required for a cat to be "present", unscaled
-                    "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
+                    "minPixelThreshold": 300 / 0.1, # (calibrated at 0.1 scale)
                     "dispensesPerDay": 3,
                     # Servo configuration
                     "dispenserServoChannel": servo.CHANNEL_DISPENSER_LEFT,
@@ -452,7 +452,7 @@ if __name__=="__main__":
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_RIGHT,
                     # Number of pixels required for a cat to be "present"
-                    "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
+                    "minPixelThreshold": 300 / 0.25, # (calibrated at 0.25 scale)
                     # Servo configuration
                     "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
                     "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,
