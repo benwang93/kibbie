@@ -15,8 +15,8 @@ import lib.kibbie_servo_utils as servo
 #
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
-scale = 0.5 # For quality
-# scale = 0.25
+# scale = 0.5 # For quality
+scale = 0.25
 # scale = 0.1 # For speed
 
 
@@ -38,9 +38,9 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, log_file, config) -> None:
+    def __init__(self, camera, log_filename, config) -> None:
         # Open log file (append mode)
-        self.logfile = open(log_file, 'a')
+        self.logfile = open(log_filename, 'a')
         self.log("=====================================")
         self.log("Initializing kibbie...")
 
@@ -118,6 +118,7 @@ class kibbie:
     def log(self, s):
         output = f"[{time.time():.3f}] {s}"
         self.logfile.write(f"{output}\n")
+        self.logfile.flush()
         print(output)
     
 
@@ -187,7 +188,7 @@ class kibbie:
                     org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 debug_mask = cv2.putText(img=debug_mask, text=f'# pixels filt: {self.filtered_pixels[corral_idx][cat_idx]:.1f} / {corral["minPixelThreshold"]:.0f}',
-                    org=(5, int(self.height_px - scale * 20 - 5)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    org=(5, int(self.height_px - scale * 25 - 5)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_allowed_cat[corral_idx]}',
                     org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
@@ -383,7 +384,7 @@ if __name__=="__main__":
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
         camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera=0,                                                               # Real camera
-        log_file="kibbie.log",
+        log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
             "cats":[
