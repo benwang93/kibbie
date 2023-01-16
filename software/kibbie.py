@@ -410,8 +410,9 @@ class kibbie:
 if __name__=="__main__":
     kb = kibbie(
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
-        camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
-        # camera=0,                                                               # Real camera
+        # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
+        # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
+        camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
@@ -419,14 +420,14 @@ if __name__=="__main__":
                 {
                     "name": "Noodle",
                     # Test color filter HSV thresholds using blue_filter.py first
-                    "lowerHSVThreshold": [0, 60, 0],
+                    "lowerHSVThreshold": [0, 0, 0],
                     "upperHSVThreshold": [255, 255, 50],
                 },
                 {
                     "name": "Cami",
                     # Test color filter HSV thresholds using blue_filter.py first
                     "lowerHSVThreshold": [0, 60, 120],
-                    "upperHSVThreshold": [10, 110, 240],
+                    "upperHSVThreshold": [20, 130, 250],
                 },
             ],
             "corrals": [
