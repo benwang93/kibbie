@@ -16,8 +16,11 @@ import lib.kibbie_servo_utils as servo
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
 # scale = 0.5 # For quality
-scale = 0.25
-# scale = 0.1 # For speed
+# scale = 0.25
+scale = 0.1 # For speed
+
+# In addition to processing `scale` used above, scale up the display to this size:
+display_scale = 0.25
 
 
 # Masks for left and right areas
@@ -110,7 +113,7 @@ class kibbie:
     
 
     def __del__(self):
-        self.log("Kibbie shutting down")
+        self.log("Kibbie shutting down...")
         self.logfile.close()
     
 
@@ -121,6 +124,9 @@ class kibbie:
         self.logfile.flush()
         print(output)
     
+    # Helper function to scale up images from processing scale to display scale
+    def scale_for_display(self, image):
+        return cv2.resize(image, (0, 0), fx=display_scale / scale, fy=display_scale / scale)
 
     # Compute the masks for each corral, where:
     # - Pixel location is within the mask polygon
@@ -184,19 +190,21 @@ class kibbie:
                     debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=(debug_mask_bg.shape[1], debug_mask_bg.shape[0]), color=color, thickness=-1)
                     debug_mask = cv2.bitwise_and(debug_mask_bg, debug_mask_bg, mask=debug_mask)
 
+                # Scale up image for showing
+                debug_mask = self.scale_for_display(debug_mask)
+
                 debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
-                    org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    org=(5, self.display_height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=display_scale,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 debug_mask = cv2.putText(img=debug_mask, text=f'# pixels filt: {self.filtered_pixels[corral_idx][cat_idx]:.1f} / {corral["minPixelThreshold"]:.0f}',
-                    org=(5, int(self.height_px - scale * 25 - 5)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    org=(5, int(self.display_height_px - display_scale * 25 - 5)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=display_scale,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_allowed_cat[corral_idx]}',
-                    org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    org=(int(self.display_width_px / 2), self.display_height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=display_scale,
                     color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
                 win_name = f'mask-{corral["name"]}-{cat["name"]}'
                 cv2.imshow(win_name, debug_mask)
-                cv2.moveWindow(win_name, (corral_idx + 1) * (self.width_px + 50), cat_idx * (self.height_px + 25))
-
+                cv2.moveWindow(win_name, (corral_idx + 1) * (self.display_width_px + 50), cat_idx * (self.display_height_px + 25))
 
     # Check if there are any servo actions to perform
     # Includes door open/close and scheduled dispenser checks
@@ -206,12 +214,21 @@ class kibbie:
             # Check for corral
             if self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]:
                 self.corral_door_open[i] = True
-                if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
+                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
                     self.log(f'Opening {corral["name"]} door')
             else:
                 self.corral_door_open[i] = False
-                if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
+                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
                     self.log(f'Closing {corral["name"]} door')
+                    
+    # Used as part of shut-down sequence
+    def close_doors(self):
+        for i,corral in enumerate(self.config["corrals"]):
+            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
+                self.log(f'Closing {corral["name"]} door')
+        
+        self.servo.block_until_servos_done()
+        self.log(f'Doors closed')
 
 
     # Presents image and overlays any masks
@@ -238,8 +255,11 @@ class kibbie:
                                 isClosed=True, color=color, thickness=2)
             
             # For debug print the cat's name over their polygon at the farthest left coordinate
-            curr_frame = cv2.putText(img=curr_frame, text=config["allowedCats"][0], org=[config["farthestLeftCoordinate"][0], config["farthestLeftCoordinate"][1] + 20], fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=color, thickness=1, lineType=cv2.LINE_AA)
+            curr_frame = cv2.putText(img=curr_frame, text=config["allowedCats"][0], org=[config["farthestLeftCoordinate"][0], config["farthestLeftCoordinate"][1] + 20], fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale, color=color, thickness=1, lineType=cv2.LINE_AA)
         
+        # Scale up image for showing
+        curr_frame = self.scale_for_display(curr_frame)
+
         # Calculate FPS
         curr_time_s = time.time()
         if (curr_time_s - self.last_time_s) > 0:
@@ -247,13 +267,13 @@ class kibbie:
         else:
             fps = 0.0
         self.last_time_s = curr_time_s
-        curr_frame = cv2.putText(img=curr_frame, text=f"FPS: {fps:.2f}", org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+        curr_frame = cv2.putText(img=curr_frame, text=f"FPS: {fps:.2f}", org=(5, self.display_height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=display_scale, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
 
-        cv2.imshow("img", self.img)
-        cv2.imshow("quantized", curr_frame)
+        cv2.imshow("raw", self.scale_for_display(self.img))
+        cv2.imshow("corrals", curr_frame)
 
-        cv2.moveWindow("img",       0, 0 * (self.height_px + 25))
-        cv2.moveWindow("quantized", 0, 1 * (self.height_px + 25))
+        cv2.moveWindow("raw",       0, 0 * (self.display_height_px + 25))
+        cv2.moveWindow("corrals", 0, 1 * (self.display_height_px + 25))
     
 
     # Dispenser state machine:
@@ -343,6 +363,8 @@ class kibbie:
 
             self.height_px = self.img.shape[0]
             self.width_px = self.img.shape[1]
+            self.display_height_px = int(self.height_px * display_scale / scale)
+            self.display_width_px = int(self.width_px * display_scale / scale)
 
             # Perform white balance
             if self.config["enableWhiteBalance"]:
@@ -374,6 +396,12 @@ class kibbie:
         vid.release()
         # Destroy all the windows
         cv2.destroyAllWindows()
+        
+        # Leave doors in a closed state when shut down
+        # This is acceptable in the case of a manual system shutdown (hitting 'q')
+        # In the case of a program crash or Ctrl+C, doors will remain in their
+        # previous state
+        self.close_doors()
 
 
 ########################

@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-# IS_RASPBERRY_PI = True # Raspberry Pi
-IS_RASPBERRY_PI = False # Desktop
+IS_RASPBERRY_PI = True # Raspberry Pi
+# IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
@@ -69,6 +69,10 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 DELAY_SERVO_WAIT = 1 # second
 DELAY_CONSECUTiVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
 
+# Special case for stepped servo operation (eg., time between door movements)
+DELAY_SERVO_WAIT_STEPS = 0.3 # seconds
+
+from numpy import arange
 
 # Class to represent a servo queue item
 # Each item contains a `timestamp` at which the servo `angle` should be commanded
@@ -103,10 +107,13 @@ class kibbie_servo_utils:
         for channel,queue in enumerate(self.channel_queue):
             # Check for actions to perform
             if len(queue) > 0 and queue[0].time <= current_time:
+                start_angle = self.kit.servo[channel].angle
+                new_angle = self.channel_queue[channel].pop(0).angle
+
                 # Pop the head of queue
-                self.kit.servo[channel].angle = self.channel_queue[channel].pop(0).angle
+                self.kit.servo[channel].angle = new_angle
                 if DEBUG_SERVO_QUEUE:
-                    print(f"[Ch {channel}]: After run_loop: {self.channel_queue[channel]}")
+                    print(f"[Ch {channel}]: Angle before: {start_angle} \tAngle now: {new_angle} \tQueue after run_loop: {self.channel_queue[channel]}")
 
 
     def queue_angle(self, channel, target_angle, offset_seconds=0):
@@ -123,6 +130,50 @@ class kibbie_servo_utils:
         self.channel_queue[channel].append(servo_queue_item(current_time + 0 * DELAY_SERVO_WAIT + offset_seconds, target_angle + 1))
         self.channel_queue[channel].append(servo_queue_item(current_time + 1 * DELAY_SERVO_WAIT + offset_seconds, target_angle - 1))
         self.channel_queue[channel].append(servo_queue_item(current_time + 2 * DELAY_SERVO_WAIT + offset_seconds, target_angle))
+
+        # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
+        # Opportunity to do a "smart queue" above to only move the motor in one direction and to cancel existing movements if going the other way.
+        self.current_angles[channel] = target_angle
+
+        return True
+
+
+    # Performs operation in 3 distinct steps. Intended for door operation
+    # Goal is to give the cat a warning, then move most of the way (but not pinch paws), then fully open/close
+    def queue_angle_stepped(self, channel, target_angle, offset_seconds=0):
+        # Check if no movement was needed
+        if target_angle == self.current_angles[channel]:
+            return False
+
+        current_time = time.time()
+
+        # Clear the queue for the current motor
+        self.channel_queue[channel] = []
+        
+        # Additional steps
+        total_movement_angle = target_angle - self.current_angles[channel]
+        start_angle = self.current_angles[channel]
+
+        # Define the proportion of the way to move at each step
+        # angle_proportions = [
+        #     0.1,
+        #     0.75,
+        #     1.0,
+        # ]
+        angle_proportions = list(arange(0.0, 1.001, 0.1))
+
+        # Compute actual angles
+        angles = [int(proportion * total_movement_angle + start_angle) for proportion in angle_proportions]
+
+        # Queue servo movement for 1 s (with overshoot)
+        delta_t = current_time + offset_seconds
+        for angle in angles:
+            # Always target +1 degrees to help prevent chatter
+            self.channel_queue[channel].append(servo_queue_item(delta_t, angle + 1))
+            delta_t += DELAY_SERVO_WAIT_STEPS
+        self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle - 1))
+        delta_t += DELAY_SERVO_WAIT
+        self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
         # Opportunity to do a "smart queue" above to only move the motor in one direction and to cancel existing movements if going the other way.
@@ -208,6 +259,8 @@ class kibbie_servo_utils:
             return
         
         # Start with door open (in case food falls as servos initialize)
+        # Note that we do not use stepped commands here, because we may command too extreme of an angle initially
+        # and a human is likely present to operate the machine.
         self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
         self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
         self.block_until_servos_done()
@@ -246,6 +299,6 @@ class kibbie_servo_utils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
-        self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)
+        self.queue_angle_stepped(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
+        self.queue_angle_stepped(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)
         self.block_until_servos_done()
