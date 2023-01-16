@@ -180,6 +180,33 @@ class kibbie:
         cv2.moveWindow("quantized", 0, 1 * (self.height_px + 25))
     
 
+    # Dispenser state machine:
+    #
+    #   init  ┌──────┐                      ┌───────────────┐
+    #  ──────►│      │  on scheduled time   │               │
+    #         │ Idle ├─────────────────────►│ Searching     │
+    #    ┌───►│      │                      │               │
+    #    │    └──────┘                      │ Wait for      │
+    #    │                                  │ opportunity   │
+    #    │                                  │               │
+    #    │                                  └─────────┬─────┘
+    #    │                                       ▲    │
+    #    │                               on cat  │    │on no cats
+    #    │                               detected│    │detected
+    #    │                                       │    │
+    #    │                                       │    ▼
+    #    │  ┌──────────────────┐            ┌────┴──────────┐
+    #    │  │                  │ on no cats │               │
+    #    │  │ Dispensing       │ detected   │ Opening       │
+    #    └──┤                  │◄───────────┤               │
+    #       │ Command dispense │            │ Command door  │
+    #       │ and close door   │            │ open          │
+    #       │                  │            │               │
+    #       └──────────────────┘            └───────────────┘
+    def dispenser_state_machine(self):
+        return
+    
+
     # Helper function to get and handle keyboard input
     # Returns False if we need to quit
     def handle_keyboard_input(self):
@@ -257,6 +284,9 @@ class kibbie:
             # Display debug image
             self.refresh_image()
 
+            # TODO: Dispense food state machine
+            self.dispenser_state_machine()
+
             # Run servos
             self.servo.run_loop()
             
@@ -286,7 +316,7 @@ if __name__=="__main__":
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": MASK_REGION_LEFT,
                 # Number of pixels required for a cat to be "present", unscaled
-                "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
+                "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
                 "lowerHSVThreshold": [0, 60, 0],
                 "upperHSVThreshold": [255, 255, 50],
@@ -302,7 +332,7 @@ if __name__=="__main__":
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": MASK_REGION_RIGHT,
                 # Number of pixels required for a cat to be "present"
-                "minPixelThreshold": 2000 / 0.25, # (calibrated at 0.25 scale)
+                "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
                 # Test color filter HSV thresholds using blue_filter.py first
                 "lowerHSVThreshold": [0, 60, 120],
                 "upperHSVThreshold": [10, 110, 240],

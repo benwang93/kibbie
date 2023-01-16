@@ -57,7 +57,21 @@ ANGLE_DOOR_LEFT_CLOSED = 162    # Calibrated offset angle for fully extended (cl
 ANGLE_DOOR_RIGHT_OPEN = 162     # Calibrated offset angle for fully retracted (open) door
 ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (closed) door
 
+# Timing calibration
+# A typical servo actuation consists of 3 separate movements:
+#  1. Target the angle + 1 degree
+#  2. Wait 1s
+#  3. Target the angle - 1 degree
+#  4. Wait 1s
+#  5. Target the actual target angle
+# This results in a total actuation time of over 2 seconds.
+# Thus, any consecutive actions should (eg., door open -> dispense food) should wait ~3s in between when queueing
+DELAY_SERVO_WAIT = 1 # second
+DELAY_CONSECUTiVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
 
+
+# Class to represent a servo queue item
+# Each item contains a `timestamp` at which the servo `angle` should be commanded
 class servo_queue_item:
     def __init__(self, time, angle):
         self.time = time
@@ -83,6 +97,7 @@ class kibbie_servo_utils:
         # Each element within channel_queue is a per-channel queue containing `servo_queue_item` objects.
         self.channel_queue = []
 
+
     def run_loop(self):
         current_time = time.time()
         for channel,queue in enumerate(self.channel_queue):
@@ -94,7 +109,7 @@ class kibbie_servo_utils:
                     print(f"[Ch {channel}]: After run_loop: {self.channel_queue[channel]}")
 
 
-    def queue_angle(self, channel, target_angle):
+    def queue_angle(self, channel, target_angle, offset_seconds=0):
         # Check if no movement was needed
         if target_angle == self.current_angles[channel]:
             return False
@@ -105,13 +120,14 @@ class kibbie_servo_utils:
         self.channel_queue[channel] = []
 
         # Queue servo movement for 1 s (with overshoot)
-        self.channel_queue[channel].append(servo_queue_item(current_time, target_angle + 1))
-        self.channel_queue[channel].append(servo_queue_item(current_time + 1, target_angle - 1))
-        self.channel_queue[channel].append(servo_queue_item(current_time + 2, target_angle))
+        self.channel_queue[channel].append(servo_queue_item(current_time + 0 * DELAY_SERVO_WAIT + offset_seconds, target_angle + 1))
+        self.channel_queue[channel].append(servo_queue_item(current_time + 1 * DELAY_SERVO_WAIT + offset_seconds, target_angle - 1))
+        self.channel_queue[channel].append(servo_queue_item(current_time + 2 * DELAY_SERVO_WAIT + offset_seconds, target_angle))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
         # Opportunity to do a "smart queue" above to only move the motor in one direction and to cancel existing movements if going the other way.
         self.current_angles[channel] = target_angle
+
 
     # Return true if the servo moved
     def go_to_angle(self, channel, target_angle):
@@ -122,15 +138,16 @@ class kibbie_servo_utils:
         # For development only, to speed up program
         if not SKIP_SERVO_WAIT:
             self.kit.servo[channel].angle = target_angle+1
-            time.sleep(1)
+            time.sleep(DELAY_SERVO_WAIT)
             self.kit.servo[channel].angle = target_angle-1
-            time.sleep(1)
+            time.sleep(DELAY_SERVO_WAIT)
             self.kit.servo[channel].angle = target_angle
 
             self.current_angles[channel] = target_angle
 
         print(f"Moved servo channel {channel} to {target_angle}")
         return True
+
 
     def print_status(self):
         print("Kibbie status:")
@@ -139,17 +156,19 @@ class kibbie_servo_utils:
                 print(f"  Current angle[{channel}]: {self.current_angles[channel]}")
         print(f"  Total dispenses: {self.dispense_count}\n")
 
-    def dispense_food(self, channel):
-        if self.current_angles[channel] == ANGLE_DISPENSE_1:
-            self.go_to_angle(channel, ANGLE_DISPENSE_2)
+
+    def dispense_food(self, dispenser_channel):
+        if self.current_angles[dispenser_channel] == ANGLE_DISPENSE_1:
+            self.queue_angle(dispenser_channel, ANGLE_DISPENSE_2)
         else:
-            self.go_to_angle(channel, ANGLE_DISPENSE_1)
+            self.queue_angle(dispenser_channel, ANGLE_DISPENSE_1)
         
         # Track number of dispenses
         self.dispense_count += 1
 
         print("Food dispensed!\n")
     
+
     # Helper function to block main thread until all servos have emptied their queues
     def block_until_servos_done(self):
         while True:
