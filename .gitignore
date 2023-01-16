@@ -6,3 +6,6 @@ venv/
 
 # Lychee slicer autosave files
 *_autosave/
+
+# Log files
+kibbie.log

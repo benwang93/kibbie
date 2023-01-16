@@ -38,7 +38,12 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, config) -> None:
+    def __init__(self, camera, log_file, config) -> None:
+        # Open log file (append mode)
+        self.logfile = open(log_file, 'a')
+        self.log("=====================================")
+        self.log("Initializing kibbie...")
+
         self.camera = camera
 
         # Store per-cat masks here (mask polygon AND color in range)
@@ -104,6 +109,18 @@ class kibbie:
         self.print_help()
     
 
+    def __del__(self):
+        self.log("Kibbie shutting down")
+        self.logfile.close()
+    
+
+    # Utility to write to the log file and print to console
+    def log(self, s):
+        output = f"[{time.time():.3f}] {s}"
+        self.logfile.write(f"{output}\n")
+        print(output)
+    
+
     # Compute the masks for each corral, where:
     # - Pixel location is within the mask polygon
     # - Pixel color is withtin the HSV filtter for the cat
@@ -111,6 +128,10 @@ class kibbie:
         # Generate per-cat masks (intersection of polygon and color filter)
         # For each corral, check for each cat
         for corral_idx,corral in enumerate(self.config["corrals"]):# First filter by polygon
+            # Save previous state for transition detection
+            prev_allowed = self.mask_has_allowed_cat[corral_idx]
+            prev_disallowed = self.mask_has_disallowed_cat[corral_idx]
+
             # Start with no cats detected
             self.mask_has_allowed_cat[corral_idx] = False
             self.mask_has_disallowed_cat[corral_idx] = False
@@ -140,9 +161,13 @@ class kibbie:
                 cat_detected = (num_nonzero_px_filt > corral["minPixelThreshold"])
                 if cat["name"] in corral["allowedCats"]:
                     cat_is_allowed = True
+                    if prev_allowed != cat_detected:
+                        self.log(f'Detected allowed cat {cat["name"]} {"entered" if cat_detected else "left"} {corral["name"]} corral')
                     self.mask_has_allowed_cat[corral_idx] |= cat_detected
                 else:
                     cat_is_allowed = False
+                    if prev_disallowed != cat_detected:
+                        self.log(f'Detected disallowed cat {cat["name"]} {"entered" if cat_detected else "left"} {corral["name"]} corral')
                     self.mask_has_disallowed_cat[corral_idx] |= cat_detected
 
                 # Show mask for debug
@@ -181,11 +206,11 @@ class kibbie:
             if self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]:
                 self.corral_door_open[i] = True
                 if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
-                    print(f'[{time.time():.3f}] Opening {corral["name"]} door')
+                    self.log(f'Opening {corral["name"]} door')
             else:
                 self.corral_door_open[i] = False
                 if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
-                    print(f'[{time.time():.3f}] Closing {corral["name"]} door')
+                    self.log(f'Closing {corral["name"]} door')
 
 
     # Presents image and overlays any masks
@@ -358,51 +383,53 @@ if __name__=="__main__":
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
         camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera=0,                                                               # Real camera
+        log_file="kibbie.log",
         config={
-        "enableWhiteBalance": True,
-        "cats":[
-            {
-                "name": "Noodle",
-                # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [0, 60, 0],
-                "upperHSVThreshold": [255, 255, 50],
-            },
-            {
-                "name": "Cami",
-                # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [0, 60, 120],
-                "upperHSVThreshold": [10, 110, 240],
-            },
-        ],
-        "corrals": [
-            {
-                "name": "left",
-                "allowedCats": ["Noodle"],
-                # Use the "unscaled" coordinates from `camera_calibration.py`
-                "mask": MASK_REGION_LEFT,
-                # Number of pixels required for a cat to be "present", unscaled
-                "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
-                "dispensesPerDay": 3,
-                # Servo configuration
-                "dispenserServoChannel": servo.CHANNEL_DISPENSER_LEFT,
-                "doorServoChannel": servo.CHANNEL_DOOR_LEFT,
-                "doorServoAngleOpen": servo.ANGLE_DOOR_LEFT_OPEN,
-                "doorServoAngleClosed": servo.ANGLE_DOOR_LEFT_CLOSED,
-            },
-            {
-                "name": "right",
-                "allowedCats": ["Cami"],
-                "dispensesPerDay": 3,
-                # Use the "unscaled" coordinates from `camera_calibration.py`
-                "mask": MASK_REGION_RIGHT,
-                # Number of pixels required for a cat to be "present"
-                "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
-                # Servo configuration
-                "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
-                "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,
-                "doorServoAngleOpen": servo.ANGLE_DOOR_RIGHT_OPEN,
-                "doorServoAngleClosed": servo.ANGLE_DOOR_RIGHT_CLOSED,
-            }
-        ],
-    })
+            "enableWhiteBalance": True,
+            "cats":[
+                {
+                    "name": "Noodle",
+                    # Test color filter HSV thresholds using blue_filter.py first
+                    "lowerHSVThreshold": [0, 60, 0],
+                    "upperHSVThreshold": [255, 255, 50],
+                },
+                {
+                    "name": "Cami",
+                    # Test color filter HSV thresholds using blue_filter.py first
+                    "lowerHSVThreshold": [0, 60, 120],
+                    "upperHSVThreshold": [10, 110, 240],
+                },
+            ],
+            "corrals": [
+                {
+                    "name": "NOODLE_L",
+                    "allowedCats": ["Noodle"],
+                    # Use the "unscaled" coordinates from `camera_calibration.py`
+                    "mask": MASK_REGION_LEFT,
+                    # Number of pixels required for a cat to be "present", unscaled
+                    "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
+                    "dispensesPerDay": 3,
+                    # Servo configuration
+                    "dispenserServoChannel": servo.CHANNEL_DISPENSER_LEFT,
+                    "doorServoChannel": servo.CHANNEL_DOOR_LEFT,
+                    "doorServoAngleOpen": servo.ANGLE_DOOR_LEFT_OPEN,
+                    "doorServoAngleClosed": servo.ANGLE_DOOR_LEFT_CLOSED,
+                },
+                {
+                    "name": "CAMI_R",
+                    "allowedCats": ["Cami"],
+                    "dispensesPerDay": 3,
+                    # Use the "unscaled" coordinates from `camera_calibration.py`
+                    "mask": MASK_REGION_RIGHT,
+                    # Number of pixels required for a cat to be "present"
+                    "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
+                    # Servo configuration
+                    "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
+                    "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,
+                    "doorServoAngleOpen": servo.ANGLE_DOOR_RIGHT_OPEN,
+                    "doorServoAngleClosed": servo.ANGLE_DOOR_RIGHT_CLOSED,
+                }
+            ],
+        }
+    )
     kb.main()
