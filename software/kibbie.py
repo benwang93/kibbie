@@ -86,7 +86,7 @@ class kibbie:
         # Initialize servo controller
         self.servo = servo.kibbie_servo_utils()
         self.servo.init_servos()
-        self.servo.print_help()
+        self.print_help()
     
 
     # Compute the masks for each cat, where:
@@ -180,6 +180,46 @@ class kibbie:
         cv2.moveWindow("quantized", 0, 1 * (self.height_px + 25))
     
 
+    # Helper function to get and handle keyboard input
+    # Returns False if we need to quit
+    def handle_keyboard_input(self):
+        key = cv2.waitKey(1)
+        if key == ord('h'):
+            self.print_help()
+        elif key == ord('p'):
+            print("PAUSED. Press any key to continue...")
+            cv2.waitKey(0)
+        elif key == ord('s'):
+            self.servo.print_status()
+        elif key == ord('q'):
+            # Return False to quit
+            return False
+
+        return True
+    
+
+    def print_help(self):
+        print(
+            "\n" +
+            "==============\n" +
+            "Kibbie\n" +
+            "==============\n" +
+            "\n" 
+            "Commands:\n" 
+            "\n" +
+            # "  d    dispense\n" +
+            "  h    print this help\n" +
+            # "  c    close door\n" +
+            # "  o    open door\n" +
+            # "  n    go to neutral\n" +
+            # "  1    go to dispense 1 position\n" +
+            # "  2    go to dispense 2 position\n" +
+            "  p    pause the video (to review debug HUD)\n"
+            "  s    print status (angle and food dispensed)\n" +
+            "  q    quit\n"
+        )
+    
+
     def main(self):
         # define a video capture object
         vid = cv2.VideoCapture(self.camera)
@@ -220,8 +260,8 @@ class kibbie:
             # Run servos
             self.servo.run_loop()
             
-            # Hit 'q' key to quit
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            # Handle key input
+            if not self.handle_keyboard_input():
                 break
         
         # After the loop release the cap object

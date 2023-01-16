@@ -7,7 +7,7 @@ For desktop development, set IS_RASPBERRY_PI to False
 # IS_RASPBERRY_PI = True # Raspberry Pi
 IS_RASPBERRY_PI = False # Desktop
 
-DEV_VIDEO_PROCESSING = False # Set to True to skip servo motor init
+DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
 
 SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
@@ -131,33 +131,13 @@ class kibbie_servo_utils:
 
         print(f"Moved servo channel {channel} to {target_angle}")
         return True
-    
-
-    def print_help(self):
-        print(
-            "\n" + \
-            "==============\n" + \
-            "Kibbie\n" + \
-            "==============\n" + \
-            "\n" +\
-            "Commands:\n" +\
-            "\n" +
-            "  d    dispense\n" +\
-            "  h    print this help\n" +\
-            "  c    close door\n" +\
-            "  o    open door\n" +\
-            "  n    go to neutral\n" +\
-            "  1    go to dispense 1 position\n" +\
-            "  2    go to dispense 2 position\n" +\
-            "  p    print status (angle and food dispensed)\n" +\
-            "  q    quit\n"
-        )
 
     def print_status(self):
         print("Kibbie status:")
         for channel in range(NUM_CHANNELS_USED):
-            print(f"  Current angle[{channel}]: {self.current_angles[channel]}")
-        print(f"  Total dispenses: {self.dispense_count}")
+            if self.current_angles[channel] != 0:
+                print(f"  Current angle[{channel}]: {self.current_angles[channel]}")
+        print(f"  Total dispenses: {self.dispense_count}\n")
 
     def dispense_food(self, channel):
         if self.current_angles[channel] == ANGLE_DISPENSE_1:
