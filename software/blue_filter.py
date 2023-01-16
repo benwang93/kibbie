@@ -33,7 +33,7 @@ scale = 0.2
 # upper_bound_hsv = [255, 255, 140]    # gray background
 
 # Target black spots on Noodle:
-lower_bound_hsv = [0, 60, 0]        # Gray background
+lower_bound_hsv = [0, 0, 0]        # Gray background
 upper_bound_hsv = [255, 255, 50]    # gray background
 
 # Cami
@@ -44,7 +44,7 @@ upper_bound_hsv = [255, 255, 50]    # gray background
 # lower_bound_hsv = [10, 130, 80]     # White background
 # upper_bound_hsv = [20, 255, 220]    # White background
 # lower_bound_hsv = [0, 60, 120]      # Gray background
-# upper_bound_hsv = [10, 110, 240]    # gray background
+# upper_bound_hsv = [20, 130, 250]    # gray background
 
 
 def filter_and_show(name, col, frame):
@@ -84,9 +84,11 @@ def filter_and_show(name, col, frame):
   
 
 # Show all 3 images side by side
-filter_and_show("cami", 0, cv2.imread('software/images/cami-gray_background.png'))
-filter_and_show("noodle", 1, cv2.imread('software/images/noodle-gray_background.png'))
+# filter_and_show("cami", 0, cv2.imread('software/images/cami-gray_background.png'))
+# filter_and_show("noodle", 1, cv2.imread('software/images/noodle-gray_background.png'))
 filter_and_show("empty", 2, cv2.imread('software/images/empty-gray_background.png'))
+filter_and_show("cami", 0, cv2.imread('software/images/cami-light_day.png'))
+filter_and_show("noodle", 1, cv2.imread('software/images/noodle-light_day.png'))
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()

@@ -112,7 +112,7 @@ class camera_calibration:
             return
 
         # Exit once video finishes
-        if not ret:
+        if self.camera and not ret:
             return
 
         # Downsample for faster processing
@@ -129,7 +129,8 @@ class camera_calibration:
         cv2.waitKey(0)
         
         # After the loop release the cap object
-        vid.release()
+        if self.camera:
+            vid.release()
         # Destroy all the windows
         cv2.destroyAllWindows()
 
@@ -149,9 +150,11 @@ class camera_calibration:
 if __name__=="__main__":
     # cal = camera_calibration(camera="software/images/white_background_low_light_both_cats.mp4")   # White background video
     # cal = camera_calibration(camera="software/images/20230114-kibbie_feeder.avi")                 # Gray background video on actual kibbie HW
-    # cal = camera_calibration(camera="software/images/noodle.png")
-    # cal = camera_calibration(camera="software/images/cami.png")
-    # cal = camera_calibration(camera='software/images/cami-gray_background.png')
-    cal = camera_calibration(camera='software/images/noodle-gray_background.png')
+    # cal = camera_calibration(image_file="software/images/noodle.png")
+    # cal = camera_calibration(image_file="software/images/cami.png")
+    # cal = camera_calibration(image_file='software/images/cami-gray_background.png')
+    # cal = camera_calibration(image_file='software/images/noodle-gray_background.png')
+    cal = camera_calibration(image_file='software/images/noodle-light_day.png')
+    # cal = camera_calibration(image_file='software/images/cami-light_day.png')
 
     cal.main()
