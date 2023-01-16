@@ -128,6 +128,8 @@ class kibbie_servo_utils:
         # Opportunity to do a "smart queue" above to only move the motor in one direction and to cancel existing movements if going the other way.
         self.current_angles[channel] = target_angle
 
+        return True
+
 
     # Return true if the servo moved
     def go_to_angle(self, channel, target_angle):

@@ -15,8 +15,8 @@ import lib.kibbie_servo_utils as servo
 #
 # The results from this script will be scaled back up by this same scale
 # so that kibbie.py can scale it back down according to its own scale.
-# scale = 0.5 # For quality
-scale = 0.25
+scale = 0.5 # For quality
+# scale = 0.25
 # scale = 0.1 # For speed
 
 
@@ -45,24 +45,30 @@ class kibbie:
         # Resulting white pixels mean that the color matched the cat and in the region of interest
         self.masks = []
 
-        # Preprocess the configuration
-        for i,cat in enumerate(config["cats"]):
-            # Pre-scale config values
-            print(f'[{cat["name"]}] Before scaling mask: {cat["mask"]}')
-            config["cats"][i]["mask"] = [[int(x[0] * scale), int(x[1] * scale)] for x in cat["mask"]]
-            print(f'[{cat["name"]}] After scaling mask: {cat["mask"]}')
-            config["cats"][i]["minPixelThreshold"] = cat["minPixelThreshold"] * scale
+        # Track door open/close state per corral
+        self.corral_door_open = [False for _ in config["corrals"]]
 
-            # Initialize mask for each cat
-            self.masks.append(None)
+        # Preprocess the configuration
+        for i,corral in enumerate(config["corrals"]):
+            # Pre-scale config values
+            print(f'[{corral["name"]}] Before scaling mask: {corral["mask"]}')
+            config["corrals"][i]["mask"] = [[int(x[0] * scale), int(x[1] * scale)] for x in corral["mask"]]
+            print(f'[{corral["name"]}] After scaling mask: {corral["mask"]}')
+            config["corrals"][i]["minPixelThreshold"] = corral["minPixelThreshold"] * scale
+
+            # Initialize mask for each corral
+            cat_masks = []
+            for _ in config["cats"]:
+                cat_masks.append(None)
+            self.masks.append(cat_masks)
 
             # Find farthest left coordinate for debug print
             farthestLeftCoordinate = [99999999999, 0] # Something very far left
-            for point in cat["mask"]:
+            for point in corral["mask"]:
                 if point[0] < farthestLeftCoordinate[0]:
                     farthestLeftCoordinate = point
             assert farthestLeftCoordinate != [99999999999, 0], "Could not find farthest left coordinate of mask for debug print"
-            config["cats"][i]["farthestLeftCoordinate"] = farthestLeftCoordinate
+            config["corrals"][i]["farthestLeftCoordinate"] = farthestLeftCoordinate
         
         self.config = config
 
@@ -81,7 +87,8 @@ class kibbie:
         self.width_px = 0
 
         # Variables for tracking state of cats in camera
-        self.mask_has_cat = [False]*servo.NUM_CHANNELS_USED
+        self.mask_has_allowed_cat = [False]*servo.NUM_CHANNELS_USED
+        self.mask_has_disallowed_cat = [False]*servo.NUM_CHANNELS_USED
 
         # Initialize servo controller
         self.servo = servo.kibbie_servo_utils()
@@ -89,59 +96,76 @@ class kibbie:
         self.print_help()
     
 
-    # Compute the masks for each cat, where:
+    # Compute the masks for each corral, where:
     # - Pixel location is within the mask polygon
     # - Pixel color is withtin the HSV filtter for the cat
     def update_cat_masks(self):
         # Generate per-cat masks (intersection of polygon and color filter)
-        for i,cat in enumerate(self.config["cats"]):
-            # First filter by polygon
-            mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
-            cv2.drawContours(image=mask_shape, contours=[np.array([cat["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
+        # For each corral, check for each cat
+        for corral_idx,corral in enumerate(self.config["corrals"]):# First filter by polygon
+            # Start with no cats detected
+            self.mask_has_allowed_cat[corral_idx] = False
+            self.mask_has_disallowed_cat[corral_idx] = False
 
-            # TODO: Iterate over all cats in each region to check for all cats (some operations require 0 or 1 cats)
-            # Then filter by cat color
-            mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
+            for cat_idx,cat in enumerate(self.config["cats"]):
+                mask_shape = np.zeros(self.img.shape[0:2], dtype=np.uint8)
+                cv2.drawContours(image=mask_shape, contours=[np.array([corral["mask"]])], contourIdx=-1, color=(255, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
+                
+                # TODO: Iterate over all cats in each region to check for all cats (some operations require 0 or 1 cats)
+                # Then filter by cat color
+                mask_color = cv2.inRange(self.hsv_img, np.array(cat["lowerHSVThreshold"]), np.array(cat["upperHSVThreshold"]))
 
-            # Combine masks
-            self.masks[i] = cv2.bitwise_and(mask_shape, mask_color)
+                # Combine masks
+                self.masks[corral_idx][cat_idx] = cv2.bitwise_and(mask_shape, mask_color)
 
-            # Check for cat
-            num_nonzero_px = cv2.countNonZero(self.masks[i])
-            self.mask_has_cat[i] = (num_nonzero_px > cat["minPixelThreshold"])
+                # Check for cat
+                num_nonzero_px = cv2.countNonZero(self.masks[corral_idx][cat_idx])
+                cat_detected = (num_nonzero_px > corral["minPixelThreshold"])
+                if cat["name"] in corral["allowedCats"]:
+                    cat_is_allowed = True
+                    self.mask_has_allowed_cat[corral_idx] |= cat_detected
+                else:
+                    cat_is_allowed = False
+                    self.mask_has_disallowed_cat[corral_idx] |= cat_detected
 
-            # Show mask for debug
-            debug_mask = self.masks[i].copy()
+                # Show mask for debug
+                debug_mask = self.masks[corral_idx][cat_idx].copy()
 
-            # Make a green image to display if cat detected
-            if self.mask_has_cat[i]:
-                debug_mask_bg = np.zeros(self.img.shape)
-                debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=(debug_mask_bg.shape[1], debug_mask_bg.shape[0]), color=(0,255,0), thickness=-1)
-                debug_mask = cv2.bitwise_and(debug_mask_bg, debug_mask_bg, mask=debug_mask)
+                # Make a green (allowed) or red (disallowed) image to display if cat detected
+                if cat_detected:
+                    if cat_is_allowed:
+                        color = (0, 255, 0) # Green
+                    else:
+                        color = (0, 0, 255) # Red
+                    debug_mask_bg = np.zeros(self.img.shape)
+                    debug_mask_bg = cv2.rectangle(img=debug_mask_bg, pt1=(0, 0), pt2=(debug_mask_bg.shape[1], debug_mask_bg.shape[0]), color=color, thickness=-1)
+                    debug_mask = cv2.bitwise_and(debug_mask_bg, debug_mask_bg, mask=debug_mask)
 
-            debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
-                org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
-                color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
-            debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_cat[i]}',
-                org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
-                color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
-            win_name = f'mask-{cat["name"]}'
-            cv2.imshow(win_name, debug_mask)
-            cv2.moveWindow(win_name, self.width_px, i * (self.height_px + 25))
+                debug_mask = cv2.putText(img=debug_mask, text=f'# pixels: {num_nonzero_px}',
+                    org=(5, self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+                debug_mask = cv2.putText(img=debug_mask, text=f'Detected: {self.mask_has_allowed_cat[corral_idx]}',
+                    org=(int(self.width_px / 2), self.height_px - 5), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=scale,#0.5,
+                    color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+                win_name = f'mask-{corral["name"]}-{cat["name"]}'
+                cv2.imshow(win_name, debug_mask)
+                cv2.moveWindow(win_name, (corral_idx + 1) * (self.width_px + 50), cat_idx * (self.height_px + 25))
 
 
     # Check if there are any servo actions to perform
     # Includes door open/close and scheduled dispenser checks
     def check_and_operate_servos(self):
         # Check each region and perform door and dispenser actions
-        for i,cat in enumerate(self.config["cats"]):
-            # Check for cat
-            if self.mask_has_cat[i]:
-                if self.servo.queue_angle(cat["door_servo_channel"], cat["door_servo_angle_open"]):
-                    print(f'Opening door for {cat["name"]}')
+        for i,corral in enumerate(self.config["corrals"]):
+            # Check for corral
+            if self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]:
+                self.corral_door_open[i] = True
+                if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
+                    print(f'[{time.time():.3f}] Opening {corral["name"]} door')
             else:
-                if self.servo.queue_angle(cat["door_servo_channel"], cat["door_servo_angle_closed"]):
-                    print(f'Closing door for {cat["name"]}')
+                self.corral_door_open[i] = False
+                if self.servo.queue_angle(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
+                    print(f'[{time.time():.3f}] Closing {corral["name"]} door')
 
 
     # Presents image and overlays any masks
@@ -152,17 +176,23 @@ class kibbie:
         # Draw image
         curr_frame = self.img.copy()
 
-        for config in self.config["cats"]:
+        for i,config in enumerate(self.config["corrals"]):
             # Draw polygon masks
             # Polygon corner points coordinates
             pts = np.array(config["mask"], np.int32)
             pts = pts.reshape((-1, 1, 2))
+            
+            # Set polygon color based on door open/close state
+            if self.corral_door_open[i]:
+                color = (0, 255, 0) # Green
+            else:
+                color = (0, 0, 255) # Red
         
             curr_frame = cv2.polylines(img=curr_frame, pts=[pts], 
-                                isClosed=True, color=(255, 255, 255), thickness=2)
+                                isClosed=True, color=color, thickness=2)
             
             # For debug print the cat's name over their polygon at the farthest left coordinate
-            curr_frame = cv2.putText(img=curr_frame, text=config["name"], org=[config["farthestLeftCoordinate"][0], config["farthestLeftCoordinate"][1] + 20], fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+            curr_frame = cv2.putText(img=curr_frame, text=config["allowedCats"][0], org=[config["farthestLeftCoordinate"][0], config["farthestLeftCoordinate"][1] + 20], fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=color, thickness=1, lineType=cv2.LINE_AA)
         
         # Calculate FPS
         curr_time_s = time.time()
@@ -313,36 +343,46 @@ if __name__=="__main__":
         "cats":[
             {
                 "name": "Noodle",
+                # Test color filter HSV thresholds using blue_filter.py first
+                "lowerHSVThreshold": [0, 60, 0],
+                "upperHSVThreshold": [255, 255, 50],
+            },
+            {
+                "name": "Cami",
+                # Test color filter HSV thresholds using blue_filter.py first
+                "lowerHSVThreshold": [0, 60, 120],
+                "upperHSVThreshold": [10, 110, 240],
+            },
+        ],
+        "corrals": [
+            {
+                "name": "left",
+                "allowedCats": ["Noodle"],
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": MASK_REGION_LEFT,
                 # Number of pixels required for a cat to be "present", unscaled
                 "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
-                # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [0, 60, 0],
-                "upperHSVThreshold": [255, 255, 50],
                 "dispensesPerDay": 3,
                 # Servo configuration
-                "dispenser_servo_channel": servo.CHANNEL_DISPENSER_LEFT,
-                "door_servo_channel": servo.CHANNEL_DOOR_LEFT,
-                "door_servo_angle_open": servo.ANGLE_DOOR_LEFT_OPEN,
-                "door_servo_angle_closed": servo.ANGLE_DOOR_LEFT_CLOSED,
+                "dispenserServoChannel": servo.CHANNEL_DISPENSER_LEFT,
+                "doorServoChannel": servo.CHANNEL_DOOR_LEFT,
+                "doorServoAngleOpen": servo.ANGLE_DOOR_LEFT_OPEN,
+                "doorServoAngleClosed": servo.ANGLE_DOOR_LEFT_CLOSED,
             },
             {
-                "name": "Cami",
+                "name": "right",
+                "allowedCats": ["Cami"],
+                "dispensesPerDay": 3,
                 # Use the "unscaled" coordinates from `camera_calibration.py`
                 "mask": MASK_REGION_RIGHT,
                 # Number of pixels required for a cat to be "present"
                 "minPixelThreshold": 1000 / 0.25, # (calibrated at 0.25 scale)
-                # Test color filter HSV thresholds using blue_filter.py first
-                "lowerHSVThreshold": [0, 60, 120],
-                "upperHSVThreshold": [10, 110, 240],
-                "dispensesPerDay": 3,
                 # Servo configuration
-                "dispenser_servo_channel": servo.CHANNEL_DISPENSER_RIGHT,
-                "door_servo_channel": servo.CHANNEL_DOOR_RIGHT,
-                "door_servo_angle_open": servo.ANGLE_DOOR_RIGHT_OPEN,
-                "door_servo_angle_closed": servo.ANGLE_DOOR_RIGHT_CLOSED,
-            },
+                "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
+                "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,
+                "doorServoAngleOpen": servo.ANGLE_DOOR_RIGHT_OPEN,
+                "doorServoAngleClosed": servo.ANGLE_DOOR_RIGHT_CLOSED,
+            }
         ],
     })
     kb.main()
