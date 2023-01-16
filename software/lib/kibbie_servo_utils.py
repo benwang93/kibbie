@@ -7,7 +7,8 @@ For desktop development, set IS_RASPBERRY_PI to False
 # IS_RASPBERRY_PI = True # Raspberry Pi
 IS_RASPBERRY_PI = False # Desktop
 
-DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
+DEV_VIDEO_PROCESSING = False # Set to True to skip servo motor init
+DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
 
 SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
 
@@ -23,7 +24,8 @@ else:
             self.actuation_range = 180
         
         def set_pulse_width_range(self, min, max):
-            print(f"Set pulse width range to ({min}, {max})")
+            if DEBUG_SERVO_QUEUE:
+                print(f"Set pulse width range to ({min}, {max})")
     class ServoKit:
         def __init__(self, channels):
             self.servo = [Motor() for _ in range(channels)]
@@ -88,7 +90,8 @@ class kibbie_servo_utils:
             if len(queue) > 0 and queue[0].time <= current_time:
                 # Pop the head of queue
                 self.kit.servo[channel].angle = self.channel_queue[channel].pop(0).angle
-                print(f"[Ch {channel}]: After run_loop: {self.channel_queue[channel]}")
+                if DEBUG_SERVO_QUEUE:
+                    print(f"[Ch {channel}]: After run_loop: {self.channel_queue[channel]}")
 
 
     def queue_angle(self, channel, target_angle):
@@ -170,6 +173,10 @@ class kibbie_servo_utils:
     # Helper function to block main thread until all servos have emptied their queues
     def block_until_servos_done(self):
         while True:
+            # Check/update servos
+            self.run_loop()
+
+            # Check for completion
             queues_empty = True
             for queue in self.channel_queue:
                 if len(queue) > 0:
