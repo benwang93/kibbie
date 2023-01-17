@@ -226,6 +226,7 @@ class kibbie:
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
                     self.log(f'Closing {corral["name"]} door')
                     
+
     # Used as part of shut-down sequence
     def close_doors(self):
         for i,corral in enumerate(self.config["corrals"]):
@@ -234,6 +235,16 @@ class kibbie:
         
         self.servo.block_until_servos_done()
         self.log(f'Doors closed')
+
+
+    # Used as part of manual servicing sequence
+    def open_doors(self):
+        for i,corral in enumerate(self.config["corrals"]):
+            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
+                self.log(f'Opening {corral["name"]} door')
+        
+        self.servo.block_until_servos_done()
+        self.log(f'Doors opened')
 
 
     # Presents image and overlays any masks
@@ -331,6 +342,12 @@ class kibbie:
             self.export_current_frame()
         elif key == ord('h'):
             self.print_help()
+        elif key == ord('o'):
+            self.log("Manually opening doors...")
+            self.open_doors()
+            print("Press any key to resume operation")
+            cv2.waitKey(0)
+            self.close_doors()
         elif key == ord('p'):
             print("PAUSED. Press any key to continue...")
             cv2.waitKey(0)
@@ -360,6 +377,7 @@ class kibbie:
             # "  n    go to neutral\n" +
             # "  1    go to dispense 1 position\n" +
             # "  2    go to dispense 2 position\n" +
+            "  o    open the door (manual servicing)\n" +
             "  p    pause the video (to review debug HUD)\n" +
             "  s    print status (angle and food dispensed)\n" +
             "  q    quit\n"
