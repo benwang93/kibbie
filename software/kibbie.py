@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import cv2
 import time
@@ -89,6 +90,7 @@ class kibbie:
         self.config = config
 
         # Placeholder for current scaled frame from camera
+        self.images = {}
         self.img = None
         self.hsv_img = None
 
@@ -205,6 +207,9 @@ class kibbie:
                 win_name = f'mask-{corral["name"]}-{cat["name"]}'
                 cv2.imshow(win_name, debug_mask)
                 cv2.moveWindow(win_name, (corral_idx + 1) * (self.display_width_px + 50), cat_idx * (self.display_height_px + 25))
+                
+                # Save images for debug
+                self.images[win_name] = debug_mask
 
     # Check if there are any servo actions to perform
     # Includes door open/close and scheduled dispenser checks
@@ -274,6 +279,9 @@ class kibbie:
 
         cv2.moveWindow("raw",       0, 0 * (self.display_height_px + 25))
         cv2.moveWindow("corrals", 0, 1 * (self.display_height_px + 25))
+
+        # Save images for export if needed
+        self.images["corrals"] = curr_frame
     
 
     # Dispenser state machine:
@@ -302,12 +310,26 @@ class kibbie:
     def dispenser_state_machine(self):
         return
     
+    # Helper function to export current frame to the `software/images/` folder
+    def export_current_frame(self):
+        folder = f"snapshots/{int(time.time())}/"
+        os.makedirs(folder, exist_ok=True)
+
+        cv2.imwrite(f"{folder}/img.png", self.img)
+
+        for key in self.images:
+            cv2.imwrite(f"{folder}/{key}.png", self.images[key])
+
+        self.log(f'Exported current frame to "{folder}/*.png"')
+
 
     # Helper function to get and handle keyboard input
     # Returns False if we need to quit
     def handle_keyboard_input(self):
         key = cv2.waitKey(1)
-        if key == ord('h'):
+        if key == ord('e'):
+            self.export_current_frame()
+        elif key == ord('h'):
             self.print_help()
         elif key == ord('p'):
             print("PAUSED. Press any key to continue...")
@@ -331,13 +353,14 @@ class kibbie:
             "Commands:\n" 
             "\n" +
             # "  d    dispense\n" +
+            "  e    export current frame for debugging\n" +
             "  h    print this help\n" +
             # "  c    close door\n" +
             # "  o    open door\n" +
             # "  n    go to neutral\n" +
             # "  1    go to dispense 1 position\n" +
             # "  2    go to dispense 2 position\n" +
-            "  p    pause the video (to review debug HUD)\n"
+            "  p    pause the video (to review debug HUD)\n" +
             "  s    print status (angle and food dispensed)\n" +
             "  q    quit\n"
         )
@@ -359,6 +382,7 @@ class kibbie:
                 break
 
             # Downsample for faster processing
+            self.images["raw"] = frame
             self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
             self.height_px = self.img.shape[0]
@@ -452,7 +476,7 @@ if __name__=="__main__":
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_RIGHT,
                     # Number of pixels required for a cat to be "present"
-                    "minPixelThreshold": 300 / 0.25, # (calibrated at 0.25 scale)
+                    "minPixelThreshold": 300 / 0.1, # (calibrated at 0.25 scale)
                     # Servo configuration
                     "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
                     "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,

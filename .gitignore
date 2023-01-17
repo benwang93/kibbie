@@ -9,3 +9,6 @@ venv/
 
 # Log files
 kibbie.log
+
+# Exported images
+snapshots/
