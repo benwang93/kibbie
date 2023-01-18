@@ -48,7 +48,11 @@ class kibbie:
         self.log("=====================================")
         self.log("Initializing kibbie...")
 
+        # Save path to file or index of camera (used to open video capture object)
         self.camera = camera
+
+        # Video capture object
+        self.vid = None
 
         # Store per-cat masks here (mask polygon AND color in range)
         # Resulting white pixels mean that the color matched the cat and in the region of interest
@@ -382,37 +386,48 @@ class kibbie:
             "  s    print status (angle and food dispensed)\n" +
             "  q    quit\n"
         )
-    
 
-    def main(self):
-        # define a video capture object
-        vid = cv2.VideoCapture(self.camera)
-        
-        # Track FPS
-        self.last_time_s = time.time()
-        
-        while(True):
-            # Capture the video frame by frame
-            ret, frame = vid.read()
 
-            # Exit once video finishes
-            if not ret:
-                break
+    # Helper function to sample 
+    def sample_input(self):
+        # Capture the video frame by frame
+        ret, frame = self.vid.read()
 
-            # Downsample for faster processing
-            self.images["raw"] = frame
-            self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+        # Exit once video finishes
+        if not ret:
+            return False
 
+        # Downsample for faster processing
+        self.images["raw"] = frame
+        self.img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+
+        # Save image dimensions for later use
+        if self.height_px != self.img.shape[0]:
             self.height_px = self.img.shape[0]
             self.width_px = self.img.shape[1]
             self.display_height_px = int(self.height_px * display_scale / scale)
             self.display_width_px = int(self.width_px * display_scale / scale)
 
-            # Perform white balance
-            if self.config["enableWhiteBalance"]:
-                self.img = img_tools.white_balance(self.img)
-            
-            self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
+        # Perform white balance
+        if self.config["enableWhiteBalance"]:
+            self.img = img_tools.white_balance(self.img)
+        
+        self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
+
+        return True
+    
+
+    def main(self):
+        # Open video capture object
+        self.vid = cv2.VideoCapture(self.camera)
+        
+        # Track FPS
+        self.last_time_s = time.time()
+        
+        while(True):
+            # Read camera frame and preprocess
+            if not self.sample_input():
+                break
 
             # Generate per-cat masks (intersection of polygon and color filter)
             self.update_cat_masks()
@@ -424,7 +439,7 @@ class kibbie:
             # Display debug image
             self.refresh_image()
 
-            # TODO: Dispense food state machine
+            # Dispense food state machine
             self.dispenser_state_machine()
 
             # Run servos
@@ -435,7 +450,8 @@ class kibbie:
                 break
         
         # After the loop release the cap object
-        vid.release()
+        self.vid.release()
+
         # Destroy all the windows
         cv2.destroyAllWindows()
         
@@ -452,9 +468,9 @@ class kibbie:
 if __name__=="__main__":
     kb = kibbie(
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
-        # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
+        camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        camera=0,                                                               # Real camera
+        # camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
