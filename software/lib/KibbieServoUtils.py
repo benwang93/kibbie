@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-IS_RASPBERRY_PI = True # Raspberry Pi
-# IS_RASPBERRY_PI = False # Desktop
+# IS_RASPBERRY_PI = True # Raspberry Pi
+IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
@@ -66,8 +66,10 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 #  5. Target the actual target angle
 # This results in a total actuation time of over 2 seconds.
 # Thus, any consecutive actions should (eg., door open -> dispense food) should wait ~3s in between when queueing
+NUM_SERVO_STEPS = 10 # Number of steps to open the door in 
 DELAY_SERVO_WAIT = 1 # second
 DELAY_CONSECUTiVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
+DELAY_CONSECUTiVE_SERVO_STEP_WAIT = (2 + NUM_SERVO_STEPS) * DELAY_SERVO_WAIT # seconds; 
 
 # Special case for stepped servo operation (eg., time between door movements)
 DELAY_SERVO_WAIT_STEPS = 0.3 # seconds
@@ -87,7 +89,7 @@ class servo_queue_item:
     def __repr__(self):
         return self.__str__()
 
-class kibbie_servo_utils:
+class KibbieServoUtils:
     def __init__(self):
         # Counters
         self.current_angles = []   # Current servo angle
@@ -160,7 +162,7 @@ class kibbie_servo_utils:
         #     0.75,
         #     1.0,
         # ]
-        angle_proportions = list(arange(0.0, 1.001, 0.1))
+        angle_proportions = list(arange(0.0, 1.001, 1.0 / NUM_SERVO_STEPS))
 
         # Compute actual angles
         angles = [int(proportion * total_movement_angle + start_angle) for proportion in angle_proportions]

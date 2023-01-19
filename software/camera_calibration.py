@@ -5,7 +5,7 @@ Script to help calibrate the trapezoidal masks used for each half of the feeder.
 import numpy as np
 import cv2
 
-import lib.img_tools as img_tools
+import lib.ImgTools as ImgTools
 
 ########################
 # Constants
@@ -43,7 +43,7 @@ class camera_calibration:
         curr_frame = self.img.copy()
     
         # Perform white balance
-        curr_frame = img_tools.white_balance(curr_frame)
+        curr_frame = ImgTools.white_balance(curr_frame)
 
         # Grab HSV at mouse coordinates
         pixel = curr_frame[self.mouse_y][self.mouse_x]

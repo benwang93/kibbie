@@ -3,9 +3,9 @@ import numpy as np
 import cv2
 import time
 
-import lib.color_quantization as cq
-import lib.img_tools as img_tools
-import lib.kibbie_servo_utils as servo
+import lib.ImgTools as ImgTools
+import lib.KibbieServoUtils as Servo
+from lib.Dispenser import Dispenser
 
 ########################
 # Constants
@@ -66,6 +66,12 @@ class kibbie:
         # Track door open/close state per corral
         self.corral_door_open = [False for _ in config["corrals"]]
 
+        # Track dispenser state per corral
+        self.corral_dispensing = [False for _ in config["corrals"]]
+
+        # Track per-corral dispenser state machines
+        self.corral_dispensers = []
+
         # Preprocess the configuration
         for i,corral in enumerate(config["corrals"]):
             # Pre-scale config values
@@ -90,6 +96,10 @@ class kibbie:
                     farthestLeftCoordinate = point
             assert farthestLeftCoordinate != [99999999999, 0], "Could not find farthest left coordinate of mask for debug print"
             config["corrals"][i]["farthestLeftCoordinate"] = farthestLeftCoordinate
+
+            # Initialize dispenser object for each corral
+            dispenser = Dispenser(dispenses_per_day=corral["dispensesPerDay"], dispenser_name=corral["name"], logfile=self.logfile)
+            self.corral_dispensers.append(dispenser)
         
         self.config = config
 
@@ -109,11 +119,11 @@ class kibbie:
         self.width_px = 0
 
         # Variables for tracking state of cats in camera
-        self.mask_has_allowed_cat = [False]*servo.NUM_CHANNELS_USED
-        self.mask_has_disallowed_cat = [False]*servo.NUM_CHANNELS_USED
+        self.mask_has_allowed_cat = [False]*Servo.NUM_CHANNELS_USED
+        self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
 
         # Initialize servo controller
-        self.servo = servo.kibbie_servo_utils()
+        self.servo = Servo.KibbieServoUtils()
         self.servo.init_servos()
         self.print_help()
     
@@ -125,7 +135,7 @@ class kibbie:
 
     # Utility to write to the log file and print to console
     def log(self, s):
-        output = f"[{time.time():.3f}] {s}"
+        output = f"[{time.asctime()}] {s}"
         self.logfile.write(f"{output}\n")
         self.logfile.flush()
         print(output)
@@ -220,8 +230,8 @@ class kibbie:
     def check_and_operate_servos(self):
         # Check each region and perform door and dispenser actions
         for i,corral in enumerate(self.config["corrals"]):
-            # Check for corral
-            if self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]:
+            # Check for corral door-open conditions or actively dispensing
+            if (self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]) or self.corral_dispensers[i].open_door_request:
                 self.corral_door_open[i] = True
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
                     self.log(f'Opening {corral["name"]} door')
@@ -229,6 +239,19 @@ class kibbie:
                 self.corral_door_open[i] = False
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
                     self.log(f'Closing {corral["name"]} door')
+            
+            # Check for dispenser commands
+            if self.corral_dispensers[i].dispense_request:
+                if not self.corral_dispensing[i]:
+                    self.corral_dispensing[i] = True
+
+                    self.log(f'Dispensing food in corral {corral["name"]}')
+
+                    # Request dispense once
+                    self.servo.dispense_food(corral["dispenserServoChannel"])
+            else:
+                # Reset flag
+                self.corral_dispensing[i] = False
                     
 
     # Used as part of shut-down sequence
@@ -301,8 +324,18 @@ class kibbie:
 
     # Helper function to run the dispenser state machine for each dispenser
     def dispenser_state_machine(self):
-        return
+        # First see if any cats are in any corrals (don't want to open door if there's a cat nearby)
+        any_mask_has_allowed_cat = False
+        any_mask_has_disallowed_cat = False
+        for i in range(len(self.corral_dispensers)):
+            any_mask_has_allowed_cat |= self.mask_has_allowed_cat[i]
+            any_mask_has_disallowed_cat |= self.mask_has_disallowed_cat[i]
+
+        # Then update each state machine
+        for i,dispenser in enumerate(self.corral_dispensers):
+            dispenser.step(any_mask_has_allowed_cat, any_mask_has_disallowed_cat)
     
+
     # Helper function to export current frame to the `software/images/` folder
     def export_current_frame(self):
         folder = f"snapshots/{int(time.time())}/"
@@ -388,7 +421,7 @@ class kibbie:
 
         # Perform white balance
         if self.config["enableWhiteBalance"]:
-            self.img = img_tools.white_balance(self.img)
+            self.img = ImgTools.white_balance(self.img)
         
         self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
@@ -410,15 +443,15 @@ class kibbie:
             # Generate per-cat masks (intersection of polygon and color filter)
             self.update_cat_masks()
 
-            # Check if there are any servo actions to perform
-            # Includes door open/close and scheduled dispenser checks
-            self.check_and_operate_servos()
-
             # Display debug image
             self.refresh_image()
 
             # Dispense food state machine
             self.dispenser_state_machine()
+
+            # Check if there are any servo actions to perform
+            # Includes door open/close and scheduled dispenser checks
+            self.check_and_operate_servos()
 
             # Run servos
             self.servo.run_loop()
@@ -476,10 +509,10 @@ if __name__=="__main__":
                     "minPixelThreshold": 300 / 0.1, # (calibrated at 0.1 scale)
                     "dispensesPerDay": 3,
                     # Servo configuration
-                    "dispenserServoChannel": servo.CHANNEL_DISPENSER_LEFT,
-                    "doorServoChannel": servo.CHANNEL_DOOR_LEFT,
-                    "doorServoAngleOpen": servo.ANGLE_DOOR_LEFT_OPEN,
-                    "doorServoAngleClosed": servo.ANGLE_DOOR_LEFT_CLOSED,
+                    "dispenserServoChannel": Servo.CHANNEL_DISPENSER_LEFT,
+                    "doorServoChannel": Servo.CHANNEL_DOOR_LEFT,
+                    "doorServoAngleOpen": Servo.ANGLE_DOOR_LEFT_OPEN,
+                    "doorServoAngleClosed": Servo.ANGLE_DOOR_LEFT_CLOSED,
                 },
                 {
                     "name": "CAMI_R",
@@ -490,10 +523,10 @@ if __name__=="__main__":
                     # Number of pixels required for a cat to be "present"
                     "minPixelThreshold": 300 / 0.1, # (calibrated at 0.25 scale)
                     # Servo configuration
-                    "dispenserServoChannel": servo.CHANNEL_DISPENSER_RIGHT,
-                    "doorServoChannel": servo.CHANNEL_DOOR_RIGHT,
-                    "doorServoAngleOpen": servo.ANGLE_DOOR_RIGHT_OPEN,
-                    "doorServoAngleClosed": servo.ANGLE_DOOR_RIGHT_CLOSED,
+                    "dispenserServoChannel": Servo.CHANNEL_DISPENSER_RIGHT,
+                    "doorServoChannel": Servo.CHANNEL_DOOR_RIGHT,
+                    "doorServoAngleOpen": Servo.ANGLE_DOOR_RIGHT_OPEN,
+                    "doorServoAngleClosed": Servo.ANGLE_DOOR_RIGHT_CLOSED,
                 }
             ],
         }

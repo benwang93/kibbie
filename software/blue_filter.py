@@ -14,7 +14,7 @@ Source: https://www.geeksforgeeks.org/filter-color-with-opencv/
 import cv2
 import numpy as np
   
-import lib.img_tools as img_tools
+import lib.ImgTools as ImgTools
 # scale = 0.1
 scale = 0.2
 
@@ -52,7 +52,7 @@ def filter_and_show(name, col, frame):
     frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
     
     # Perform white balance
-    frame = img_tools.white_balance(frame)
+    frame = ImgTools.white_balance(frame)
 
     # It converts the BGR color space of image to HSV color space
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
