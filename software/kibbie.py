@@ -299,29 +299,7 @@ class kibbie:
         self.images["corrals"] = curr_frame
     
 
-    # Dispenser state machine:
-    #
-    #   init  ┌──────┐                      ┌───────────────┐
-    #  ──────►│      │  on scheduled time   │               │
-    #         │ Idle ├─────────────────────►│ Searching     │
-    #    ┌───►│      │                      │               │
-    #    │    └──────┘                      │ Wait for      │
-    #    │                                  │ opportunity   │
-    #    │                                  │               │
-    #    │                                  └─────────┬─────┘
-    #    │                                       ▲    │
-    #    │                               on cat  │    │on no cats
-    #    │                               detected│    │detected
-    #    │                                       │    │
-    #    │                                       │    ▼
-    #    │  ┌──────────────────┐            ┌────┴──────────┐
-    #    │  │                  │ on no cats │               │
-    #    │  │ Dispensing       │ detected   │ Opening       │
-    #    └──┤                  │◄───────────┤               │
-    #       │ Command dispense │            │ Command door  │
-    #       │ and close door   │            │ open          │
-    #       │                  │            │               │
-    #       └──────────────────┘            └───────────────┘
+    # Helper function to run the dispenser state machine for each dispenser
     def dispenser_state_machine(self):
         return
     
