@@ -94,7 +94,6 @@ class Dispenser:
     # Force dispenser state machine to dispense food NOW
     def schedule_dispense_now(self):
         self.next_dispense_time = time.time()
-        self.state = DispenserState.SEARCHING
         self.log(f"*** Forced dispense scheduled for now! ({time.asctime(time.localtime((self.next_dispense_time)))})")
     
 
