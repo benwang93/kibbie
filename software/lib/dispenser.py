@@ -34,7 +34,7 @@ import time
 
 import lib.KibbieServoUtils as Servo
 
-DEBUG_DISPENSER_STATE_MACHINE = True # Set to True to schedule first dispense at time of init
+DEBUG_DISPENSER_STATE_MACHINE = False # Set to True to schedule first dispense at time of init
 
 # class syntax
 class DispenserState(Enum):

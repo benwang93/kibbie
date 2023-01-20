@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-# IS_RASPBERRY_PI = True # Raspberry Pi
-IS_RASPBERRY_PI = False # Desktop
+IS_RASPBERRY_PI = True # Raspberry Pi
+# IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information

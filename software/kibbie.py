@@ -25,8 +25,8 @@ display_scale = 0.25
 
 # Amount of ms to wait after each frame before the next one
 # Use this to intentionally slow down frame rate, or use 1 ms for fastest performance
-# FRAME_PERIOD_MS = 1
-FRAME_PERIOD_MS = 100
+FRAME_PERIOD_MS = 1
+# FRAME_PERIOD_MS = 100
 
 # Masks for left and right areas
 # Use the "unscaled" coordinates from `camera_calibration.py`
@@ -491,9 +491,9 @@ class kibbie:
 if __name__=="__main__":
     kb = kibbie(
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
-        camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
+        # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        # camera=0,                                                               # Real camera
+        camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
@@ -533,7 +533,7 @@ if __name__=="__main__":
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_RIGHT,
                     # Number of pixels required for a cat to be "present"
-                    "minPixelThreshold": 300 / 0.1, # (calibrated at 0.25 scale)
+                    "minPixelThreshold": 300 / 0.1, # (calibrated at 0.1 scale)
                     # Servo configuration
                     "dispenserServoChannel": Servo.CHANNEL_DISPENSER_RIGHT,
                     "doorServoChannel": Servo.CHANNEL_DOOR_RIGHT,
