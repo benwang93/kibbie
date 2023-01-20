@@ -34,6 +34,8 @@ import time
 
 import lib.KibbieServoUtils as Servo
 
+DEBUG_DISPENSER_STATE_MACHINE = True # Set to True to schedule first dispense at time of init
+
 # class syntax
 class DispenserState(Enum):
     IDLE = 1
@@ -54,8 +56,15 @@ class Dispenser:
 
         # Initialize dispense time based on the most recent midnight (UTC time)
         current_time = time.time()
-        start_of_day = current_time - (current_time % (3600 * 24))
-        self.next_dispense_time = start_of_day + (SECONDS_PER_DAY / self.dispenses_per_day)
+
+        if DEBUG_DISPENSER_STATE_MACHINE:
+            # If debugging, force first dispense to be right now
+            start_of_day = 0
+            self.next_dispense_time = current_time
+        else:
+            start_of_day = current_time - (current_time % (3600 * 24))
+            self.next_dispense_time = start_of_day + (SECONDS_PER_DAY / self.dispenses_per_day)
+        
         self.log(f'Set to dispense at {time.asctime(time.localtime(self.next_dispense_time))} (Start of day was {time.asctime(time.localtime(start_of_day))})')
 
         # State machine outputs (latching)
@@ -72,6 +81,14 @@ class Dispenser:
         self.logfile.write(f"{output}\n")
         self.logfile.flush()
         print(output)
+
+
+    def print_status(self):
+        self.log("Dispenser status:")
+        self.log(f"  State: {self.state}")
+        self.log(f"  Dispenses per day: {self.dispenses_per_day}")
+        self.log(f"  Next dispense: {time.asctime(time.localtime(self.next_dispense_time))}")
+        self.log("--------------")
     
 
     # Function to call at each step to run the state machine
@@ -95,7 +112,8 @@ class Dispenser:
             if not allowed_cat_detected and not disallowed_cat_detected:
                 # On transition, open door
                 self.open_door_request = True
-                self.door_open_completion_time = current_time + Servo.DELAY_CONSECUTiVE_SERVO_STEP_WAIT # Door uses the queue_angle_stepped() function
+                self.door_open_completion_time = current_time + Servo.DELAY_CONSECUTIVE_SERVO_STEP_WAIT # Door uses the queue_angle_stepped() function
+                self.log(f"Scheduled door open completion time for {time.asctime(time.localtime(self.door_open_completion_time))}")
 
                 # Set next state
                 self.state = DispenserState.OPENING
@@ -114,7 +132,7 @@ class Dispenser:
             # Check servo state somehow (timer?)
             elif current_time >= self.door_open_completion_time:
                 self.dispense_request = True
-                self.dispense_completion_time = current_time + Servo.DELAY_CONSECUTiVE_SERVO_WAIT # Dispenser uses the queue_angle() function
+                self.dispense_completion_time = current_time + Servo.DELAY_CONSECUTIVE_SERVO_WAIT # Dispenser uses the queue_angle() function
 
                 self.state = DispenserState.DISPENSING
 

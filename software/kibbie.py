@@ -23,6 +23,10 @@ scale = 0.1 # For speed
 # In addition to processing `scale` used above, scale up the display to this size:
 display_scale = 0.25
 
+# Amount of ms to wait after each frame before the next one
+# Use this to intentionally slow down frame rate, or use 1 ms for fastest performance
+# FRAME_PERIOD_MS = 1
+FRAME_PERIOD_MS = 100
 
 # Masks for left and right areas
 # Use the "unscaled" coordinates from `camera_calibration.py`
@@ -123,7 +127,7 @@ class kibbie:
         self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
 
         # Initialize servo controller
-        self.servo = Servo.KibbieServoUtils()
+        self.servo = Servo.KibbieServoUtils(self.logfile)
         self.servo.init_servos()
         self.print_help()
     
@@ -352,7 +356,7 @@ class kibbie:
     # Helper function to get and handle keyboard input
     # Returns False if we need to quit
     def handle_keyboard_input(self):
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(FRAME_PERIOD_MS)
         if key == ord('e'):
             self.export_current_frame()
         elif key == ord('h'):
@@ -368,6 +372,8 @@ class kibbie:
             cv2.waitKey(0)
         elif key == ord('s'):
             self.servo.print_status()
+            for dispenser in self.corral_dispensers:
+                dispenser.print_status()
         elif key == ord('q'):
             # Return False to quit
             return False

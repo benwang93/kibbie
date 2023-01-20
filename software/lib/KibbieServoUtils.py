@@ -68,11 +68,10 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 # Thus, any consecutive actions should (eg., door open -> dispense food) should wait ~3s in between when queueing
 NUM_SERVO_STEPS = 10 # Number of steps to open the door in 
 DELAY_SERVO_WAIT = 1 # second
-DELAY_CONSECUTiVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
-DELAY_CONSECUTiVE_SERVO_STEP_WAIT = (2 + NUM_SERVO_STEPS) * DELAY_SERVO_WAIT # seconds; 
+DELAY_SERVO_WAIT_STEPS = 0.3 # seconds; Special case for stepped servo operation (eg., time between door movements)
 
-# Special case for stepped servo operation (eg., time between door movements)
-DELAY_SERVO_WAIT_STEPS = 0.3 # seconds
+DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
+DELAY_CONSECUTIVE_SERVO_STEP_WAIT = (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT) # seconds
 
 from numpy import arange
 
@@ -90,10 +89,16 @@ class servo_queue_item:
         return self.__str__()
 
 class KibbieServoUtils:
-    def __init__(self):
+    def __init__(self, logfile):
+        # Logging
+        self.logfile = logfile
+
+        # Save startup time to track uptime
+        self.init_time = time.time()
+
         # Counters
         self.current_angles = []   # Current servo angle
-        self.dispense_count = 0  # Total number of dispenses
+        self.dispense_count = {}   # Total number of dispenses per channel
 
         # Insatnce of ServoKit to perform controls
         self.kit = ServoKit(channels=NUM_CHANNELS)
@@ -102,6 +107,13 @@ class KibbieServoUtils:
         # `channel_queue`` is indexed by servo channel
         # Each element within channel_queue is a per-channel queue containing `servo_queue_item` objects.
         self.channel_queue = []
+
+
+    def log(self, s):
+        output = f"[{time.asctime()}][KibbieServoUtils] {s}"
+        self.logfile.write(f"{output}\n")
+        self.logfile.flush()
+        print(output)
 
 
     def run_loop(self):
@@ -115,7 +127,7 @@ class KibbieServoUtils:
                 # Pop the head of queue
                 self.kit.servo[channel].angle = new_angle
                 if DEBUG_SERVO_QUEUE:
-                    print(f"[Ch {channel}]: Angle before: {start_angle} \tAngle now: {new_angle} \tQueue after run_loop: {self.channel_queue[channel]}")
+                    self.log(f"[Ch {channel}]: Angle before: {start_angle} \tAngle now: {new_angle} \tQueue after run_loop: {self.channel_queue[channel]}")
 
 
     def queue_angle(self, channel, target_angle, offset_seconds=0):
@@ -200,16 +212,21 @@ class KibbieServoUtils:
 
             self.current_angles[channel] = target_angle
 
-        print(f"Moved servo channel {channel} to {target_angle}")
+        self.log(f"Moved servo channel {channel} to {target_angle}")
         return True
 
 
     def print_status(self):
-        print("Kibbie status:")
+        self.log("--------------")
+        self.log("Servo status:")
         for channel in range(NUM_CHANNELS_USED):
             if self.current_angles[channel] != 0:
-                print(f"  Current angle[{channel}]: {self.current_angles[channel]}")
-        print(f"  Total dispenses: {self.dispense_count}\n")
+                self.log(f"    Current angle[{channel}]: {self.current_angles[channel]}")
+        self.log(f"  Total dispenses:")
+        for channel in self.dispense_count:
+            self.log(f"    Ch {channel} : {self.dispense_count[channel]}")
+        self.log(f"  Uptime: {(time.time() - self.init_time):.0f} seconds")
+        self.log("--------------")
 
 
     def dispense_food(self, dispenser_channel):
@@ -219,9 +236,12 @@ class KibbieServoUtils:
             self.queue_angle(dispenser_channel, ANGLE_DISPENSE_1)
         
         # Track number of dispenses
-        self.dispense_count += 1
+        if dispenser_channel in self.dispense_count:
+            self.dispense_count[dispenser_channel] += 1
+        else:
+            self.dispense_count[dispenser_channel] = 1
 
-        print("Food dispensed!\n")
+        self.log(f"Food dispensed for channel {dispenser_channel}")
     
 
     # Helper function to block main thread until all servos have emptied their queues
