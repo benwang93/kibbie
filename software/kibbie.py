@@ -357,7 +357,16 @@ class kibbie:
     # Returns False if we need to quit
     def handle_keyboard_input(self):
         key = cv2.waitKey(FRAME_PERIOD_MS)
-        if key == ord('e'):
+        if key == ord('d'):
+            print("Enter corral number to dispense:")
+            for i,corral in enumerate(self.config["corrals"]):
+                print(f'{i}: {corral["name"]}')
+            key2 = cv2.waitKey(0)
+            for i,corral in enumerate(self.config["corrals"]):
+                if key2 == ord(f'{i}'):
+                    self.log(f'Forcing dispense for corral {corral["name"]}')
+                    self.corral_dispensers[i].schedule_dispense_now()
+        elif key == ord('e'):
             self.export_current_frame()
         elif key == ord('h'):
             self.print_help()
@@ -390,18 +399,13 @@ class kibbie:
             "\n" 
             "Commands:\n" 
             "\n" +
-            # "  d    dispense\n" +
-            "  e    export current frame for debugging\n" +
-            "  h    print this help\n" +
-            # "  c    close door\n" +
-            # "  o    open door\n" +
-            # "  n    go to neutral\n" +
-            # "  1    go to dispense 1 position\n" +
-            # "  2    go to dispense 2 position\n" +
-            "  o    open the door (manual servicing)\n" +
-            "  p    pause the video (to review debug HUD)\n" +
-            "  s    print status (angle and food dispensed)\n" +
-            "  q    quit\n"
+            "  d<idx>   dispense corral at idx (will print corral index-name mapping)\n" +
+            "  e        export current frame for debugging\n" +
+            "  h        print this help\n" +
+            "  o        open the door (manual servicing)\n" +
+            "  p        pause the video (to review debug HUD)\n" +
+            "  s        print status (angle and food dispensed)\n" +
+            "  q        quit\n"
         )
 
 
@@ -465,6 +469,8 @@ class kibbie:
             # Handle key input
             if not self.handle_keyboard_input():
                 break
+        
+        self.log("Kibbie exited main loop. Starting shutdown procedure...")
         
         # After the loop release the cap object
         self.vid.release()

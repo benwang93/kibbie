@@ -91,6 +91,13 @@ class Dispenser:
         self.log("--------------")
     
 
+    # Force dispenser state machine to dispense food NOW
+    def schedule_dispense_now(self):
+        self.next_dispense_time = time.time()
+        self.state = DispenserState.SEARCHING
+        self.log(f"*** Forced dispense scheduled for now! ({time.asctime(time.localtime((self.next_dispense_time)))})")
+    
+
     # Function to call at each step to run the state machine
     # Returns door and dispenser commands
     def step(self, allowed_cat_detected, disallowed_cat_detected):
