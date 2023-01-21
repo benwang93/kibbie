@@ -118,6 +118,10 @@ class kibbie:
         # Timestamp of last frame - used to calculate FPS to display on debug image
         self.last_time_s = None
 
+        # Variables to support periodic frame exports while door is open
+        self.export_frame_on_timer = False          # Set to True while door is open to export
+        self.next_export_frame_on_timer_time = 0    # Set to next time to export (time.time()) while self.export_frame_on_timer is True
+
         # Cache dimensions of scaled image
         self.height_px = 0
         self.width_px = 0
@@ -239,10 +243,16 @@ class kibbie:
                 self.corral_door_open[i] = True
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
                     self.log(f'Opening {corral["name"]} door')
+                    self.export_current_frame(postfix="opening", annotated_only=True)
+                    if self.config["saveSnapshotWhileDoorOpenPeriodSeconds"] > 0:
+                        self.export_frame_on_timer = True
+                        self.next_export_frame_on_timer_time = (time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"])
             else:
                 self.corral_door_open[i] = False
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
                     self.log(f'Closing {corral["name"]} door')
+                    self.export_frame_on_timer = False
+                    self.export_current_frame("closing", annotated_only=True)
             
             # Check for dispenser commands
             if self.corral_dispensers[i].dispense_request:
@@ -319,7 +329,7 @@ class kibbie:
         cv2.imshow("raw", self.scale_for_display(self.img))
         cv2.imshow("corrals", curr_frame)
 
-        cv2.moveWindow("raw",       0, 0 * (self.display_height_px + 25))
+        cv2.moveWindow("raw", 0, 0 * (self.display_height_px + 25))
         cv2.moveWindow("corrals", 0, 1 * (self.display_height_px + 25))
 
         # Save images for export if needed
@@ -341,16 +351,26 @@ class kibbie:
     
 
     # Helper function to export current frame to the `software/images/` folder
-    def export_current_frame(self):
-        folder = f"snapshots/{int(time.time())}/"
-        os.makedirs(folder, exist_ok=True)
+    def export_current_frame(self, postfix="", annotated_only=False):
+        filename = str(int(time.time()))
+        if postfix != "":
+            filename += "-" + postfix
+        
+        if annotated_only:
+            folder = f"snapshots"
+            os.makedirs(folder, exist_ok=True)
 
-        cv2.imwrite(f"{folder}/img.png", self.img)
+            cv2.imwrite(f"{folder}/{filename}.png", self.images["corrals"])
 
-        for key in self.images:
-            cv2.imwrite(f"{folder}/{key}.png", self.images[key])
+            self.log(f'Exported current frame to "f{folder}/{filename}.png"')
+        else:
+            folder = f"snapshots/{filename}/"
+            os.makedirs(folder, exist_ok=True)
 
-        self.log(f'Exported current frame to "{folder}/*.png"')
+            for key in self.images:
+                cv2.imwrite(f"{folder}/{key}.png", self.images[key])
+
+            self.log(f'Exported current frame to "{folder}/*.png"')
 
 
     # Helper function to get and handle keyboard input
@@ -463,6 +483,11 @@ class kibbie:
             # Includes door open/close and scheduled dispenser checks
             self.check_and_operate_servos()
 
+            # Export current frame while door open, if enabled
+            if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
+                self.export_current_frame(postfix="open", annotated_only=True)
+                self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
+
             # Run servos
             self.servo.run_loop()
             
@@ -497,6 +522,8 @@ if __name__=="__main__":
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
+            "saveSnapshotOnDoorMovement": True,             # Set to True to save snapshots on every door open or close
+            "saveSnapshotWhileDoorOpenPeriodSeconds": 10,   # Set to integer > 0 to save snapshots while door is open
             "cats":[
                 {
                     "name": "Noodle",
