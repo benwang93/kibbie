@@ -40,8 +40,10 @@ else:
 NUM_CHANNELS = 16
 NUM_CHANNELS_USED = 16
 CHANNEL_DOOR_LEFT = 0
+CHANNEL_DOOR_LATCH_LEFT = 3
 CHANNEL_DISPENSER_LEFT = 11
 CHANNEL_DOOR_RIGHT = 8
+CHANNEL_DOOR_LATCH_RIGHT = 15
 CHANNEL_DISPENSER_RIGHT = 12
 
 # Dispenser angle definitions
@@ -66,8 +68,10 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 # Increase angle by 20 degrees
 # Slide lock assembly down until snug with closed door
 # Tighten servo lock assembly screws and note the angles below
-ANGLE_DOOR_LOCK_LEFT_UNLOCKED = 110
-ANGLE_DOOR_LOCK_LEFT_LOCKED = 130
+ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 110
+ANGLE_DOOR_LATCH_LEFT_LOCKED = 130
+ANGLE_DOOR_LATCH_RIGHT_UNLOCKED = 90  # TBD
+ANGLE_DOOR_LATCH_RIGHT_LOCKED = 90    # TBD
 
 # Timing calibration
 # A typical servo actuation consists of 3 separate movements:
@@ -82,8 +86,9 @@ NUM_SERVO_STEPS = 10 # Number of steps to open the door in
 DELAY_SERVO_WAIT = 1 # second
 DELAY_SERVO_WAIT_STEPS = 0.3 # seconds; Special case for stepped servo operation (eg., time between door movements)
 
+DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo to move
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
-DELAY_CONSECUTIVE_SERVO_STEP_WAIT = (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT) # seconds
+DELAY_CONSECUTIVE_SERVO_STEP_WAIT = DELAY_DOOR_LATCH_SERVO_WAIT + (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT) # seconds
 
 from numpy import arange
 
@@ -166,12 +171,17 @@ class KibbieServoUtils:
 
     # Performs operation in 3 distinct steps. Intended for door operation
     # Goal is to give the cat a warning, then move most of the way (but not pinch paws), then fully open/close
-    def queue_angle_stepped(self, channel, target_angle, offset_seconds=0):
+    def queue_angle_stepped(self, channel, target_angle, latch_channel, latch_angle_unlocked, latch_angle_locked, offset_seconds=0):
         # Check if no movement was needed
         if target_angle == self.current_angles[channel]:
             return False
 
         current_time = time.time()
+        
+        # Always unlatch door before moving it
+        if self.current_angles[latch_channel] != latch_angle_unlocked:
+            # self.log("Unlatching before door movement")
+            self.channel_queue[latch_channel] = [servo_queue_item(current_time, latch_angle_unlocked)]
 
         # Clear the queue for the current motor
         self.channel_queue[channel] = []
@@ -192,7 +202,7 @@ class KibbieServoUtils:
         angles = [int(proportion * total_movement_angle + start_angle) for proportion in angle_proportions]
 
         # Queue servo movement for 1 s (with overshoot)
-        delta_t = current_time + offset_seconds
+        delta_t = current_time + DELAY_DOOR_LATCH_SERVO_WAIT + offset_seconds
         for angle in angles:
             # Always target +1 degrees to help prevent chatter
             self.channel_queue[channel].append(servo_queue_item(delta_t, angle + 1))
@@ -200,6 +210,10 @@ class KibbieServoUtils:
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle - 1))
         delta_t += DELAY_SERVO_WAIT
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
+
+        # Latch door after moving it
+        delta_t += DELAY_SERVO_WAIT
+        self.channel_queue[latch_channel].append(servo_queue_item(delta_t, latch_angle_locked))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
         # Opportunity to do a "smart queue" above to only move the motor in one direction and to cancel existing movements if going the other way.
@@ -295,8 +309,10 @@ class KibbieServoUtils:
         # Start with door open (in case food falls as servos initialize)
         # Note that we do not use stepped commands here, because we may command too extreme of an angle initially
         # and a human is likely present to operate the machine.
-        self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN)
-        self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN)
+        self.queue_angle(CHANNEL_DOOR_LATCH_LEFT, ANGLE_DOOR_LATCH_LEFT_UNLOCKED)
+        self.queue_angle(CHANNEL_DOOR_LATCH_RIGHT, ANGLE_DOOR_LATCH_RIGHT_UNLOCKED)
+        self.queue_angle(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_OPEN, offset_seconds=DELAY_DOOR_LATCH_SERVO_WAIT)
+        self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN, offset_seconds=DELAY_DOOR_LATCH_SERVO_WAIT)
         self.block_until_servos_done()
 
         # Initial prompt for whether the initialization sequence should be run
@@ -333,6 +349,6 @@ class KibbieServoUtils:
         print("Closing the door in 5 seconds...")
         time.sleep(5.0)
         print("Closing the door...")
-        self.queue_angle_stepped(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED)
-        self.queue_angle_stepped(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED)
+        self.queue_angle_stepped(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED, CHANNEL_DOOR_LATCH_LEFT, ANGLE_DOOR_LATCH_LEFT_UNLOCKED, ANGLE_DOOR_LATCH_LEFT_LOCKED)
+        self.queue_angle_stepped(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED, CHANNEL_DOOR_LATCH_RIGHT, ANGLE_DOOR_LATCH_RIGHT_UNLOCKED, ANGLE_DOOR_LATCH_RIGHT_LOCKED)
         self.block_until_servos_done()

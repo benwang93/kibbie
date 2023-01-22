@@ -241,7 +241,7 @@ class kibbie:
             # Check for corral door-open conditions or actively dispensing
             if (self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]) or self.corral_dispensers[i].open_door_request:
                 self.corral_door_open[i] = True
-                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
+                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Opening {corral["name"]} door')
                     self.export_current_frame(postfix="opening", annotated_only=True)
                     if self.config["saveSnapshotWhileDoorOpenPeriodSeconds"] > 0:
@@ -249,7 +249,7 @@ class kibbie:
                         self.next_export_frame_on_timer_time = (time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"])
             else:
                 self.corral_door_open[i] = False
-                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
+                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Closing {corral["name"]} door')
                     self.export_frame_on_timer = False
                     self.export_current_frame("closing", annotated_only=True)
@@ -271,7 +271,7 @@ class kibbie:
     # Used as part of shut-down sequence
     def close_doors(self):
         for i,corral in enumerate(self.config["corrals"]):
-            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"]):
+            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                 self.log(f'Closing {corral["name"]} door')
         
         self.servo.block_until_servos_done()
@@ -281,7 +281,7 @@ class kibbie:
     # Used as part of manual servicing sequence
     def open_doors(self):
         for i,corral in enumerate(self.config["corrals"]):
-            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"]):
+            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                 self.log(f'Opening {corral["name"]} door')
         
         self.servo.block_until_servos_done()
@@ -552,6 +552,9 @@ if __name__=="__main__":
                     "doorServoChannel": Servo.CHANNEL_DOOR_LEFT,
                     "doorServoAngleOpen": Servo.ANGLE_DOOR_LEFT_OPEN,
                     "doorServoAngleClosed": Servo.ANGLE_DOOR_LEFT_CLOSED,
+                    "doorLatchServoChannel": Servo.CHANNEL_DOOR_LATCH_LEFT,
+                    "doorLatchServoAngleUnlocked": Servo.ANGLE_DOOR_LATCH_LEFT_UNLOCKED,
+                    "doorLatchServoAngleLocked": Servo.ANGLE_DOOR_LATCH_LEFT_LOCKED,
                 },
                 {
                     "name": "CAMI_R",
@@ -566,6 +569,9 @@ if __name__=="__main__":
                     "doorServoChannel": Servo.CHANNEL_DOOR_RIGHT,
                     "doorServoAngleOpen": Servo.ANGLE_DOOR_RIGHT_OPEN,
                     "doorServoAngleClosed": Servo.ANGLE_DOOR_RIGHT_CLOSED,
+                    "doorLatchServoChannel": Servo.CHANNEL_DOOR_LATCH_RIGHT,
+                    "doorLatchServoAngleUnlocked": Servo.ANGLE_DOOR_LATCH_RIGHT_UNLOCKED,
+                    "doorLatchServoAngleLocked": Servo.ANGLE_DOOR_LATCH_RIGHT_LOCKED,
                 }
             ],
         }
