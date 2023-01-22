@@ -57,6 +57,18 @@ ANGLE_DOOR_LEFT_CLOSED = 140    # Calibrated offset angle for fully extended (cl
 ANGLE_DOOR_RIGHT_OPEN = 162     # Calibrated offset angle for fully retracted (open) door
 ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (closed) door
 
+# Door lock servo angle definitions
+
+# Build procedure:
+# 1. Set servo to 90 degrees while unattached
+# Attach lock arm, pointing slightly downwards from horizontal (first spline mesh angle)
+# Use servo angle comander to lower the arm until it's parallel with the track.
+# Increase angle by 20 degrees
+# Slide lock assembly down until snug with closed door
+# Tighten servo lock assembly screws and note the angles below
+ANGLE_DOOR_LOCK_LEFT_UNLOCKED = 110
+ANGLE_DOOR_LOCK_LEFT_LOCKED = 130
+
 # Timing calibration
 # A typical servo actuation consists of 3 separate movements:
 #  1. Target the angle + 1 degree
