@@ -176,12 +176,15 @@ class KibbieServoUtils:
         if target_angle == self.current_angles[channel]:
             return False
 
+        # Get motor movement times
         current_time = time.time()
+        delta_t = current_time + offset_seconds
         
         # Always unlatch door before moving it
         if self.current_angles[latch_channel] != latch_angle_unlocked:
             # self.log("Unlatching before door movement")
-            self.channel_queue[latch_channel] = [servo_queue_item(current_time, latch_angle_unlocked)]
+            self.channel_queue[latch_channel] = [servo_queue_item(delta_t, latch_angle_unlocked)]
+            delta_t += DELAY_DOOR_LATCH_SERVO_WAIT
 
         # Clear the queue for the current motor
         self.channel_queue[channel] = []
@@ -202,7 +205,6 @@ class KibbieServoUtils:
         angles = [int(proportion * total_movement_angle + start_angle) for proportion in angle_proportions]
 
         # Queue servo movement for 1 s (with overshoot)
-        delta_t = current_time + DELAY_DOOR_LATCH_SERVO_WAIT + offset_seconds
         for angle in angles:
             # Always target +1 degrees to help prevent chatter
             self.channel_queue[channel].append(servo_queue_item(delta_t, angle + 1))
