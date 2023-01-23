@@ -105,6 +105,7 @@ class servo_queue_item:
     def __repr__(self):
         return self.__str__()
 
+
 class KibbieServoUtils:
     def __init__(self, logfile):
         # Logging
@@ -181,7 +182,7 @@ class KibbieServoUtils:
         delta_t = current_time + offset_seconds
         
         # Always unlatch door before moving it
-        if self.current_angles[latch_channel] != latch_angle_unlocked:
+        if self.kit.servo[latch_channel].angle != latch_angle_unlocked:
             # self.log("Unlatching before door movement")
             self.channel_queue[latch_channel] = [servo_queue_item(delta_t, latch_angle_unlocked)]
             delta_t += DELAY_DOOR_LATCH_SERVO_WAIT
