@@ -88,7 +88,7 @@ DELAY_SERVO_WAIT_STEPS = 0.3 # seconds; Special case for stepped servo operation
 
 DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo to move
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
-DELAY_CONSECUTIVE_SERVO_STEP_WAIT = DELAY_DOOR_LATCH_SERVO_WAIT + (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT) # seconds
+DELAY_CONSECUTIVE_SERVO_STEP_WAIT = DELAY_DOOR_LATCH_SERVO_WAIT + (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT_STEPS) # seconds
 
 from numpy import arange
 
@@ -212,11 +212,11 @@ class KibbieServoUtils:
             self.channel_queue[channel].append(servo_queue_item(delta_t, angle + 1))
             delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle - 1))
-        delta_t += DELAY_SERVO_WAIT
+        delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
 
         # Latch door after moving it
-        delta_t += DELAY_SERVO_WAIT
+        delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[latch_channel].append(servo_queue_item(delta_t, latch_angle_locked))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
