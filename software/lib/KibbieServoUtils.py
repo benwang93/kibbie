@@ -191,8 +191,9 @@ class KibbieServoUtils:
         self.channel_queue[channel] = []
         
         # Additional steps
-        total_movement_angle = target_angle - self.current_angles[channel]
-        start_angle = self.current_angles[channel]
+        # Note: Start not from the previous target angle of the servo, but the last commanded angle to prevent sudden snapping of the door.
+        start_angle = self.kit.servo[channel].angle
+        total_movement_angle = target_angle - start_angle
 
         # Define the proportion of the way to move at each step
         # angle_proportions = [
