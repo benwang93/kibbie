@@ -3,7 +3,7 @@
 import http.server
 import socketserver
 
-PORT = 80
+PORT = 8000
 
 handler = http.server.SimpleHTTPRequestHandler
 
