@@ -47,6 +47,7 @@ Shaft length: 50mm - 6.5mm = 44.5mm
 ### Design requirements:
 - P1: Monitor each dispenser's servo motor current (3 servos per corral, 2 corrals total)
 - P1: Communicate overcurrent per-side to Raspberry Pi for shutting down bad side and falling back to single side operation
+- P1: Ability to shut off servos on overcurrent. This might be doable via thee Raspberry Pi though?
 - P1: Run off of 5V power from PSU
 - P2: Watchdog via GPIO, where Raspberry Pi toggles a GPIO while Kibbie program is alive
 - P2: Ability to cut power to Raspberry Pi if watchdog sees failure (5V relay, but to Kibbie)
