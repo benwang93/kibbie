@@ -12,3 +12,6 @@ kibbie.log
 
 # Exported images
 snapshots/
+
+# Persistence files
+persistence/

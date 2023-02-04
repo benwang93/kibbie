@@ -516,9 +516,9 @@ class kibbie:
 if __name__=="__main__":
     kb = kibbie(
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
-        # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
+        camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        camera=0,                                                               # Real camera
+        # camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,

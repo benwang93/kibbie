@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-IS_RASPBERRY_PI = True # Raspberry Pi
-# IS_RASPBERRY_PI = False # Desktop
+# IS_RASPBERRY_PI = True # Raspberry Pi
+IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
@@ -13,6 +13,7 @@ DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue informa
 SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
 
 import time
+from .Persistence import Persistence
 
 if IS_RASPBERRY_PI:
     from adafruit_servokit import ServoKit
@@ -126,12 +127,23 @@ class KibbieServoUtils:
         # Each element within channel_queue is a per-channel queue containing `servo_queue_item` objects.
         self.channel_queue = []
 
+        # Persistance object to store servo angles
+        self.persisted_angles = Persistence("servo_angles")
+
 
     def log(self, s):
         output = f"[{time.asctime()}][KibbieServoUtils] {s}"
         self.logfile.write(f"{output}\n")
         self.logfile.flush()
         print(output)
+
+
+    # Use this to simultaneously move servo and persist the angle to disk
+    def set_actual_servo_angle(self, channel, new_angle):
+        self.kit.servo[channel].angle = new_angle
+
+        # Persist the last servo angle to file
+        self.persisted_angles.set(channel, new_angle)
 
 
     def run_loop(self):
@@ -143,7 +155,7 @@ class KibbieServoUtils:
                 new_angle = self.channel_queue[channel].pop(0).angle
 
                 # Pop the head of queue
-                self.kit.servo[channel].angle = new_angle
+                self.set_actual_servo_angle(channel, new_angle)
                 if DEBUG_SERVO_QUEUE:
                     self.log(f"[Ch {channel}]: Angle before: {start_angle} \tAngle now: {new_angle} \tQueue after run_loop: {self.channel_queue[channel]}")
 
@@ -234,11 +246,11 @@ class KibbieServoUtils:
         
         # For development only, to speed up program
         if not SKIP_SERVO_WAIT:
-            self.kit.servo[channel].angle = target_angle+1
+            self.set_actual_servo_angle(channel, target_angle+1)
             time.sleep(DELAY_SERVO_WAIT)
-            self.kit.servo[channel].angle = target_angle-1
+            self.set_actual_servo_angle(channel, target_angle-1)
             time.sleep(DELAY_SERVO_WAIT)
-            self.kit.servo[channel].angle = target_angle
+            self.set_actual_servo_angle(channel, target_angle)
 
             self.current_angles[channel] = target_angle
 
