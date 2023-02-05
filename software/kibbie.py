@@ -529,12 +529,12 @@ if __name__=="__main__":
                     "name": "Noodle",
                     # Test color filter HSV thresholds using blue_filter.py first
                     "lowerHSVThreshold": [0, 0, 0],
-                    "upperHSVThreshold": [255, 255, 80],
+                    "upperHSVThreshold": [255, 255, 70],
                 },
                 {
                     "name": "Cami",
                     # Test color filter HSV thresholds using blue_filter.py first
-                    "lowerHSVThreshold": [0, 60, 120],
+                    "lowerHSVThreshold": [0, 60, 90],
                     "upperHSVThreshold": [20, 130, 250],
                 },
             ],

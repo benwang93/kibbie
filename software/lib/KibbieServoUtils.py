@@ -68,8 +68,8 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 # Increase angle by 20 degrees
 # Slide lock assembly down until snug with closed door
 # Tighten servo lock assembly screws and note the angles below
-ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 110
-ANGLE_DOOR_LATCH_LEFT_LOCKED = 128
+ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 105
+ANGLE_DOOR_LATCH_LEFT_LOCKED = 127
 ANGLE_DOOR_LATCH_RIGHT_UNLOCKED = 75
 ANGLE_DOOR_LATCH_RIGHT_LOCKED = 60
 
