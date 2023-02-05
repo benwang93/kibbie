@@ -33,6 +33,7 @@ from enum import Enum
 import time
 
 import lib.KibbieServoUtils as Servo
+from lib.Persistence import Persistence
 
 DEBUG_DISPENSER_STATE_MACHINE = False # Set to True to schedule first dispense at time of init
 
@@ -51,6 +52,8 @@ class Dispenser:
         self.name = dispenser_name
         self.logfile = logfile
 
+        self.persistence = Persistence("dispenser")
+
         self.state = DispenserState.IDLE
         self.dispenses_per_day = dispenses_per_day
 
@@ -59,13 +62,16 @@ class Dispenser:
 
         if DEBUG_DISPENSER_STATE_MACHINE:
             # If debugging, force first dispense to be right now
-            start_of_day = 0
-            self.next_dispense_time = current_time
+            self.persistence.set("next_dispense_time", current_time)
         else:
-            start_of_day = current_time - (current_time % (3600 * 24))
-            self.next_dispense_time = start_of_day + (SECONDS_PER_DAY / self.dispenses_per_day)
+            # Otherwise calculate next dispense time based on persisted time and current time
+            prev_next_dispense_time = self.persistence.get("next_dispense_time")
+            if prev_next_dispense_time is None:
+                prev_next_dispense_time = current_time
+            next_dispense_time = max(prev_next_dispense_time, current_time)
+            self.persistence.set("next_dispense_time", next_dispense_time)
         
-        self.log(f'Set to dispense at {time.asctime(time.localtime(self.next_dispense_time))} (Start of day was {time.asctime(time.localtime(start_of_day))})')
+        self.log(f'Set to dispense at {time.asctime(time.localtime(self.persistence.get("next_dispense_time")))}')
 
         # State machine outputs (latching)
         self.open_door_request = False
@@ -87,14 +93,14 @@ class Dispenser:
         self.log("Dispenser status:")
         self.log(f"  State: {self.state}")
         self.log(f"  Dispenses per day: {self.dispenses_per_day}")
-        self.log(f"  Next dispense: {time.asctime(time.localtime(self.next_dispense_time))}")
+        self.log(f"  Next dispense: {time.asctime(time.localtime(self.persistence.get('next_dispense_time')))}")
         self.log("--------------")
     
 
     # Force dispenser state machine to dispense food NOW
     def schedule_dispense_now(self):
-        self.next_dispense_time = time.time()
-        self.log(f"*** Forced dispense scheduled for now! ({time.asctime(time.localtime((self.next_dispense_time)))})")
+        self.persistence.set("next_dispense_time", time.time())
+        self.log(f"*** Forced dispense scheduled for now! ({time.asctime(time.localtime((self.persistence.get('next_dispense_time'))))})")
     
 
     # Function to call at each step to run the state machine
@@ -104,9 +110,9 @@ class Dispenser:
 
         if self.state == DispenserState.IDLE:
             # Transition to SEARCHING if it's time to dispense
-            if current_time >= self.next_dispense_time:
+            if current_time >= self.persistence.get("next_dispense_time"):
                 # On transition, schedule next dispense
-                self.next_dispense_time = current_time + (SECONDS_PER_DAY / self.dispenses_per_day)
+                self.persistence.set("next_dispense_time", current_time + (SECONDS_PER_DAY / self.dispenses_per_day))
 
                 # Set next state
                 self.state = DispenserState.SEARCHING
