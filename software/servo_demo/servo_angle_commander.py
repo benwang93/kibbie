@@ -30,12 +30,14 @@ channel = 1
 # Counters
 current_angle = 0   # Current servo angle
 
+SERVO_OVERSHOOT_ANGLE_DEGREES = 3
+
 def go_to_angle(target_angle):
     global current_angle
 
-    kit.servo[channel].angle = target_angle+1
+    kit.servo[channel].angle = target_angle + SERVO_OVERSHOOT_ANGLE_DEGREES
     time.sleep(0.5)
-    kit.servo[channel].angle = target_angle-1
+    kit.servo[channel].angle = target_angle - SERVO_OVERSHOOT_ANGLE_DEGREES
     time.sleep(0.3)
     kit.servo[channel].angle = target_angle
     kit.servo[channel].angle = target_angle
