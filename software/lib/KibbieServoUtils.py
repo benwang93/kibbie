@@ -4,8 +4,8 @@ Library to provide Kibbie servo functions
 For desktop development, set IS_RASPBERRY_PI to False
 """
 
-# IS_RASPBERRY_PI = True # Raspberry Pi
-IS_RASPBERRY_PI = False # Desktop
+IS_RASPBERRY_PI = True # Raspberry Pi
+# IS_RASPBERRY_PI = False # Desktop
 
 DEV_VIDEO_PROCESSING = True # Set to True to skip servo motor init
 DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue information
@@ -91,6 +91,9 @@ DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo 
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
 DELAY_CONSECUTIVE_SERVO_STEP_WAIT = DELAY_DOOR_LATCH_SERVO_WAIT + (NUM_SERVO_STEPS * DELAY_SERVO_WAIT_STEPS) + (2 * DELAY_SERVO_WAIT_STEPS) # seconds
 
+# How many degrees to overshoot the servo by when moving it to a target angle
+SERVO_OVERSHOOT_ANGLE_DEGREES = 3
+
 from numpy import arange
 
 # Class to represent a servo queue item
@@ -171,8 +174,8 @@ class KibbieServoUtils:
         self.channel_queue[channel] = []
 
         # Queue servo movement for 1 s (with overshoot)
-        self.channel_queue[channel].append(servo_queue_item(current_time + 0 * DELAY_SERVO_WAIT + offset_seconds, target_angle + 1))
-        self.channel_queue[channel].append(servo_queue_item(current_time + 1 * DELAY_SERVO_WAIT + offset_seconds, target_angle - 1))
+        self.channel_queue[channel].append(servo_queue_item(current_time + 0 * DELAY_SERVO_WAIT + offset_seconds, target_angle + SERVO_OVERSHOOT_ANGLE_DEGREES))
+        self.channel_queue[channel].append(servo_queue_item(current_time + 1 * DELAY_SERVO_WAIT + offset_seconds, target_angle - SERVO_OVERSHOOT_ANGLE_DEGREES))
         self.channel_queue[channel].append(servo_queue_item(current_time + 2 * DELAY_SERVO_WAIT + offset_seconds, target_angle))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
@@ -221,9 +224,9 @@ class KibbieServoUtils:
         # Queue servo movement for 1 s (with overshoot)
         for angle in angles:
             # Always target +1 degrees to help prevent chatter
-            self.channel_queue[channel].append(servo_queue_item(delta_t, angle + 1))
+            self.channel_queue[channel].append(servo_queue_item(delta_t, angle + SERVO_OVERSHOOT_ANGLE_DEGREES))
             delta_t += DELAY_SERVO_WAIT_STEPS
-        self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle - 1))
+        self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle - SERVO_OVERSHOOT_ANGLE_DEGREES))
         delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
 
@@ -331,13 +334,31 @@ class KibbieServoUtils:
         self.queue_angle(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_OPEN, offset_seconds=DELAY_DOOR_LATCH_SERVO_WAIT)
         self.block_until_servos_done()
 
+        # Start dispenser servos from where they were (if previously initialized)
+        prev_dispenser_left_angle = self.persisted_angles.get(CHANNEL_DISPENSER_LEFT)
+        prev_dispenser_right_angle = self.persisted_angles.get(CHANNEL_DISPENSER_RIGHT)
+        if prev_dispenser_left_angle and prev_dispenser_left_angle in [ANGLE_DISPENSE_1, ANGLE_DISPENSE_2]:
+            # Start at previous angle (should result in no kibbles dropping)
+            self.queue_angle(CHANNEL_DISPENSER_LEFT, prev_dispenser_left_angle)
+            left_dispenser_initialized = True
+        else:
+            left_dispenser_initialized = False
+        if prev_dispenser_right_angle and prev_dispenser_right_angle in [ANGLE_DISPENSE_1, ANGLE_DISPENSE_2]:
+            # Start at previous angle (should result in no kibbles dropping)
+            self.queue_angle(CHANNEL_DISPENSER_RIGHT, prev_dispenser_right_angle)
+            right_dispenser_initialized = True
+        else:
+            right_dispenser_initialized = False
+
         # Initial prompt for whether the initialization sequence should be run
         init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
         if init_cmd == "Y":
             # We need authority in both directions, so 90 degrees is neutral
             print("Setting angle to neutral (90 degrees)")
-            self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
-            self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
+            if not left_dispenser_initialized:
+                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
+            if not right_dispenser_initialized:
+                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
             self.block_until_servos_done()
 
             # Wait for food to be loaded
@@ -345,18 +366,17 @@ class KibbieServoUtils:
             _ = input("\nHit enter to continue")
 
             # Load food into side 2 by moving paddles to side 1
-            print("Loading side 2...")
-            self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
-            self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
+            print("Loading first side...")
+            if prev_dispenser_left_angle != ANGLE_DISPENSE_1:
+                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
+            else:
+                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
+            if prev_dispenser_right_angle != ANGLE_DISPENSE_1:
+                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
+            else:
+                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
             self.block_until_servos_done()
             time.sleep(1.5)
-
-        # Now turn to side 2 to load side 1 with food
-        print("Loading side 1...")
-        self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
-        self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
-        self.block_until_servos_done()
-        time.sleep(1.5)
 
         # Now give operator a chance to empty the tray back into the hopper
         _ = input("\nDispenser loaded. Please empty the food tray back into the hopper and hit Enter to continue.")
