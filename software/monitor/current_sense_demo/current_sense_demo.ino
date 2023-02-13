@@ -12,6 +12,7 @@
 
 const float FILT_LEARNING_FACTOR = 0.95;       // Each new sample is 0.9*old + (1 - 0.9) * new
 
+const float VOLTAGE_BIAS = 2.5; // V, 0-current DC offset of current sensors
 const float CURRENT_GAIN_A_PER_V = 1.0 /*A*/ / 0.185 /*V*/; // From https://smile.amazon.com/dp/B00XT0PLXE
 
 // Pin definitions for current sense
@@ -22,15 +23,21 @@ uint8_t CURRENT_CHANNEL_PINS[] = {
 };
 
 // Array to store per-channel filtered current
+int rawValues[] = {0, 0};
+float unfilteredVoltage[] = {0, 0};
+float unfilteredCurrent[] = {0, 0};
 float filteredCurrent[] = {0, 0};
 
-const int CYCLES_TO_REPORT_CURRENT = 100;
-int cyclesLeftBeforeReportingCurrent = 0;
+const int SERIAL_OUTPUT_PERIOD_MS = 100; // ms, period at which to report current measurements on serial (lower bound)
+// const int SERIAL_OUTPUT_PERIOD_MS = 100; // ms, period at which to report current measurements on serial (lower bound)
+unsigned long nextOutputTime = 0; // Next timestamp at which to report current measurement to serial
 
 // the setup routine runs once when you press reset:
 void setup() {
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
+
+  Serial.println("Starting current measurements...");
 }
 
 void sampleAndFilter(uint8_t channel) {
@@ -41,22 +48,33 @@ void sampleAndFilter(uint8_t channel) {
 
   // Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
   float voltage = sensorValue * (5.0 / 1023.0);
-  float current = CURRENT_GAIN_A_PER_V * (voltage - 2.5);
+  float current = CURRENT_GAIN_A_PER_V * (voltage - VOLTAGE_BIAS);
 
   // Apply filter
-  filteredCurrent[pin] = FILT_LEARNING_FACTOR * filteredCurrent[pin] + (1.0 - FILT_LEARNING_FACTOR) * current;
-
-  // Serial.println("Ch " + String(channel) + ": " + String(filteredCurrent[pin]));
+  rawValues[channel] = sensorValue;
+  unfilteredVoltage[channel] = voltage;
+  unfilteredCurrent[channel] = current;
+  filteredCurrent[channel] = FILT_LEARNING_FACTOR * filteredCurrent[channel] + (1.0 - FILT_LEARNING_FACTOR) * current;
 }
 
 void reportCurrentOnSerial() {
   String output = "";
 
+  String separator = ","; // Can also use a tab instead
+  
+  // Prepend csv output with timestamp for CSV output
+  output += String(millis()) + separator;
+
   for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
     if (channel > 0) {
-      output += "\t";
+      output += separator;
     }
-    output += filteredCurrent[CURRENT_CHANNEL_PINS[channel]];
+
+    // output += String(filteredCurrent[CURRENT_CHANNEL_PINS[channel]]);
+    output += String(rawValues[channel]) + separator +
+              String(unfilteredVoltage[channel]) + separator +
+              String(unfilteredCurrent[channel]) + separator +
+              String(filteredCurrent[channel]);
   }
 
   Serial.println(output);
@@ -68,15 +86,13 @@ void loop() {
     sampleAndFilter(channel);
   }
 
-  // Report every 1 in 50 samples
-  // Serial.println("Cycles before reporting current: " + String(cyclesLeftBeforeReportingCurrent));
-  if (cyclesLeftBeforeReportingCurrent <= 0) {
+  // Report filtered current on serial periodically
+  unsigned long currentTime = millis();
+  if (currentTime >= nextOutputTime) {
     reportCurrentOnSerial();
 
-    // Reset countdown
-    cyclesLeftBeforeReportingCurrent = CYCLES_TO_REPORT_CURRENT;
+    nextOutputTime = currentTime + SERIAL_OUTPUT_PERIOD_MS;
   }
-  cyclesLeftBeforeReportingCurrent--;
 }
 
 // Observed 2.50V for 0A
