@@ -1,14 +1,23 @@
 /*
-  ReadAnalogVoltage
+  Kibbie Current Sense Demo
 
-  Reads an analog input on pin 0, converts it to voltage, and prints the result to the Serial Monitor.
-  Graphical representation is available using Serial Plotter (Tools > Serial Plotter menu).
-  Attach the center pin of a potentiometer to pin A0, and the outside pins to +5V and ground.
+  Outputs measurements in a comma-separated format:
 
-  This example code is in the public domain.
+    <opcode>,<timestamp>,<value1>,<value2>,...
+  
+  Supported opcodes (RX):
+  - "I": Current measurement
+  
+  Supported opcodes (TX):
+  
+  Current measurements (exponentially filtered):
 
-  https://www.arduino.cc/en/Tutorial/BuiltInExamples/ReadAnalogVoltage
+    I,<timestamp>,<ch0 current (A)>,<ch1 current (A)>
+  
 */
+
+// Set to true to turn on current debug message (raw sample, unfiltered voltage, unfiltered current)
+const bool ENABLE_CURRENT_DEBUG = false;
 
 const float FILT_LEARNING_FACTOR = 0.95;       // Each new sample is 0.9*old + (1 - 0.9) * new
 
@@ -62,6 +71,9 @@ void reportCurrentOnSerial() {
 
   String separator = ","; // Can also use a tab instead
   
+  // Opcode (I for current measurement)
+  output += "I" + separator;
+
   // Prepend csv output with timestamp for CSV output
   output += String(millis()) + separator;
 
@@ -70,11 +82,15 @@ void reportCurrentOnSerial() {
       output += separator;
     }
 
-    // output += String(filteredCurrent[CURRENT_CHANNEL_PINS[channel]]);
-    output += String(rawValues[channel]) + separator +
-              String(unfilteredVoltage[channel]) + separator +
-              String(unfilteredCurrent[channel]) + separator +
-              String(filteredCurrent[channel]);
+    if (ENABLE_CURRENT_DEBUG) {
+      output +=
+        String(rawValues[channel]) + separator +          // Raw integer ADC values
+        String(unfilteredVoltage[channel]) + separator +  // Unfiltered float voltage
+        String(unfilteredCurrent[channel]) + separator;   // Unfiltered float current
+    }
+
+    output +=
+      String(filteredCurrent[channel]);                   // Filtered float current
   }
 
   Serial.println(output);
