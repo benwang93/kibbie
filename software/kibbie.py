@@ -243,7 +243,7 @@ class kibbie:
                 self.corral_door_open[i] = True
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Opening {corral["name"]} door')
-                    self.export_current_frame(postfix="opening", annotated_only=True)
+                    self.export_current_frame(postfix=f'opening-{corral["name"]}', annotated_only=True)
                     if self.config["saveSnapshotWhileDoorOpenPeriodSeconds"] > 0:
                         self.export_frame_on_timer = True
                         self.next_export_frame_on_timer_time = (time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"])
@@ -252,7 +252,7 @@ class kibbie:
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Closing {corral["name"]} door')
                     self.export_frame_on_timer = False
-                    self.export_current_frame("closing", annotated_only=True)
+                    self.export_current_frame(f'closing-{corral["name"]}', annotated_only=True)
             
             # Check for dispenser commands
             if self.corral_dispensers[i].dispense_request:
@@ -352,18 +352,24 @@ class kibbie:
 
     # Helper function to export current frame to the `software/images/` folder
     def export_current_frame(self, postfix="", annotated_only=False):
-        filename = str(int(time.time()))
+        current_time = time.localtime(time.time())
+        filename = time.strftime("%Y-%m-%d_%H-%M-%S", current_time)
+        date_string = time.strftime("%Y-%m-%d", current_time)
+        
         if postfix != "":
             filename += "-" + postfix
         
         if annotated_only:
-            folder = f"snapshots"
+            # Single frame export (intended for auto-export)
+            folder = f"snapshots/{date_string}"
             os.makedirs(folder, exist_ok=True)
 
+            # Only export the annotated frame of corrals
             cv2.imwrite(f"{folder}/{filename}.png", self.images["corrals"])
 
             self.log(f'Exported current frame to "f{folder}/{filename}.png"')
         else:
+            # Export all frames (intended for user request)
             folder = f"snapshots/{filename}/"
             os.makedirs(folder, exist_ok=True)
 
@@ -485,7 +491,13 @@ class kibbie:
 
             # Export current frame while door open, if enabled
             if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
-                self.export_current_frame(postfix="open", annotated_only=True)
+                # Get names of open corrals
+                open_corrals_str = ""
+                for i,corral_open in enumerate(self.corral_door_open):
+                    if corral_open:
+                        open_corrals_str += f'-{self.config["corrals"][i]["name"]}'
+
+                self.export_current_frame(postfix=f"open{open_corrals_str}", annotated_only=True)
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
             # Run servos

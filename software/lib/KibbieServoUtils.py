@@ -85,7 +85,7 @@ ANGLE_DOOR_LATCH_RIGHT_LOCKED = 60
 # Thus, any consecutive actions should (eg., door open -> dispense food) should wait ~3s in between when queueing
 NUM_SERVO_STEPS = 10 # Number of steps to open the door in 
 DELAY_SERVO_WAIT = 1 # second
-DELAY_SERVO_WAIT_STEPS = 0.3 # seconds; Special case for stepped servo operation (eg., time between door movements)
+DELAY_SERVO_WAIT_STEPS = 0.2 # seconds; Special case for stepped servo operation (eg., time between door movements)
 
 DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo to move
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
