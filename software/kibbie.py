@@ -6,6 +6,7 @@ import time
 import lib.ImgTools as ImgTools
 import lib.KibbieServoUtils as Servo
 from lib.Dispenser import Dispenser
+from lib.KibbieSerial import KibbieSerial
 
 ########################
 # Constants
@@ -129,6 +130,9 @@ class kibbie:
         # Variables for tracking state of cats in camera
         self.mask_has_allowed_cat = [False]*Servo.NUM_CHANNELS_USED
         self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
+
+        # Initialize serial controller
+        self.kbSerial = KibbieSerial()
 
         # Initialize servo controller
         self.servo = Servo.KibbieServoUtils(self.logfile)
@@ -502,6 +506,9 @@ class kibbie:
 
             # Run servos
             self.servo.run_loop()
+
+            # Update serial
+            self.kbSerial.update()
             
             # Handle key input
             if not self.handle_keyboard_input():
