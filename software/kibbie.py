@@ -135,8 +135,11 @@ class kibbie:
         self.mask_has_allowed_cat = [False]*Servo.NUM_CHANNELS_USED
         self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
 
-        # Initialize serial controller
+        # Initialize serial controller (and efuse controller)
         self.kbSerial = KibbieSerial()
+
+        # Wait a bit before initializing servos so efuse controller can stabilize
+        time.sleep(0.5)
 
         # Variables for plotting current from serial
         self.current_history = []
