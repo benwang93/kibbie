@@ -1,11 +1,14 @@
 import os
-import numpy as np
-import cv2
 import time
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 
 import lib.ImgTools as ImgTools
 import lib.KibbieServoUtils as Servo
 from lib.Dispenser import Dispenser
+from lib.KibbieSerial import KibbieSerial
 
 ########################
 # Constants
@@ -65,7 +68,9 @@ class kibbie:
         # Track a filtered number of pixels per corral per cat to make door less sensitive
         # Target something like 2s time constant?
         self.filtered_pixels = []
-        self.filter_ratio = 0.95 # (every cycle, this fraction of new value will come from previous value)
+        self.filter_ratio = 0.90 # (every cycle, this fraction of new value will come from previous value)
+                                    # Use 0.95 for ~20 FPS
+                                    # Use 0.90 for 10 FPS
 
         # Track door open/close state per corral
         self.corral_door_open = [False for _ in config["corrals"]]
@@ -129,6 +134,16 @@ class kibbie:
         # Variables for tracking state of cats in camera
         self.mask_has_allowed_cat = [False]*Servo.NUM_CHANNELS_USED
         self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
+
+        # Initialize serial controller (and efuse controller)
+        self.kbSerial = KibbieSerial()
+
+        # Wait a bit before initializing servos so efuse controller can stabilize
+        time.sleep(0.5)
+
+        # Variables for plotting current from serial
+        self.current_history = []
+        self.fig, self.ax = plt.subplots()
 
         # Initialize servo controller
         self.servo = Servo.KibbieServoUtils(self.logfile)
@@ -243,7 +258,7 @@ class kibbie:
                 self.corral_door_open[i] = True
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Opening {corral["name"]} door')
-                    self.export_current_frame(postfix="opening", annotated_only=True)
+                    self.export_current_frame(postfix=f'opening-{corral["name"]}', annotated_only=True)
                     if self.config["saveSnapshotWhileDoorOpenPeriodSeconds"] > 0:
                         self.export_frame_on_timer = True
                         self.next_export_frame_on_timer_time = (time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"])
@@ -252,7 +267,7 @@ class kibbie:
                 if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
                     self.log(f'Closing {corral["name"]} door')
                     self.export_frame_on_timer = False
-                    self.export_current_frame("closing", annotated_only=True)
+                    self.export_current_frame(f'closing-{corral["name"]}', annotated_only=True)
             
             # Check for dispenser commands
             if self.corral_dispensers[i].dispense_request:
@@ -352,23 +367,31 @@ class kibbie:
 
     # Helper function to export current frame to the `software/images/` folder
     def export_current_frame(self, postfix="", annotated_only=False):
-        filename = str(int(time.time()))
+        current_time = time.localtime(time.time())
+        filename = time.strftime("%Y-%m-%d_%H-%M-%S", current_time)
+        date_string = time.strftime("%Y-%m-%d", current_time)
+        
         if postfix != "":
             filename += "-" + postfix
         
         if annotated_only:
-            folder = f"snapshots"
+            # Single frame export (intended for auto-export)
+            folder = f"snapshots/{date_string}"
             os.makedirs(folder, exist_ok=True)
 
+            # Only export the annotated frame of corrals
             cv2.imwrite(f"{folder}/{filename}.png", self.images["corrals"])
 
             self.log(f'Exported current frame to "f{folder}/{filename}.png"')
         else:
+            # Export all frames (intended for user request)
             folder = f"snapshots/{filename}/"
             os.makedirs(folder, exist_ok=True)
 
             for key in self.images:
                 cv2.imwrite(f"{folder}/{key}.png", self.images[key])
+            
+            self.plot_current(f"{folder}/current.png")
 
             self.log(f'Exported current frame to "{folder}/*.png"')
 
@@ -390,6 +413,8 @@ class kibbie:
             self.export_current_frame()
         elif key == ord('h'):
             self.print_help()
+        elif key == ord('i'):
+            self.plot_current()
         elif key == ord('o'):
             self.log("Manually opening doors...")
             self.open_doors()
@@ -422,6 +447,7 @@ class kibbie:
             "  d<idx>   dispense corral at idx (will print corral index-name mapping)\n" +
             "  e        export current frame for debugging\n" +
             "  h        print this help\n" +
+            "  i        save plot of current\n" +
             "  o        open the door (manual servicing)\n" +
             "  p        pause the video (to review debug HUD)\n" +
             "  s        print status (angle and food dispensed)\n" +
@@ -456,7 +482,40 @@ class kibbie:
         self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
         return True
+
+
+    def sample_current(self):
+        NUM_CURRENT_SAMPLES_TO_SAVE = 1000
+
+        # Add current sample
+        for i,channel_sample in enumerate(self.kbSerial.channel_current):
+            # Initialize sample if it's the first time receiving it
+            if i == len(self.current_history):
+                self.current_history.append([channel_sample])
+            else:
+                self.current_history[i].append(channel_sample)
+
+            # Remove oldest sample if too long
+            if len(self.current_history[i]) > NUM_CURRENT_SAMPLES_TO_SAVE:
+                self.current_history[i] = self.current_history[i][1:]
     
+
+    # Plot current on-demand
+    def plot_current(self, filepath="snapshots/current.png"):
+        self.fig, self.ax = plt.subplots()
+        if len(self.current_history) >= 2:
+            # self.ax.plot(range(len(self.current_history[0])), 'g^', self.current_history[0], self.current_history[0]) #, 'g^', x2, y2, 'g-')
+            self.ax.plot(range(len(self.current_history[0])), self.current_history[0]) #, 'g^', x2, y2, 'g-')
+            self.ax.plot(range(len(self.current_history[1])), self.current_history[1])
+
+        self.ax.set(xlabel='sample number', ylabel='Current (A)',
+            title='Kibbie Door Current')
+        self.ax.grid()
+        self.ax.set_ylim(-0.1, 2.0)
+
+        self.fig.savefig(filepath)
+        self.log(f"Saved plot of current to {filepath}")
+
 
     def main(self):
         # Open video capture object
@@ -464,8 +523,17 @@ class kibbie:
         
         # Track FPS
         self.last_time_s = time.time()
+
+        # Similar to FPS, but to run periodically
+        previous_run_time_s = 0
         
         while(True):
+            # Slow down to run periodically
+            run_freq = 10 # Hz
+            while (time.time() - previous_run_time_s) < (1 / run_freq):
+                time.sleep(0.001)
+            previous_run_time_s = time.time()
+
             # Read camera frame and preprocess
             if not self.sample_input():
                 break
@@ -476,6 +544,10 @@ class kibbie:
             # Display debug image
             self.refresh_image()
 
+            # Update serial
+            self.kbSerial.update()
+            self.sample_current()
+
             # Dispense food state machine
             self.dispenser_state_machine()
 
@@ -485,7 +557,13 @@ class kibbie:
 
             # Export current frame while door open, if enabled
             if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
-                self.export_current_frame(postfix="open", annotated_only=True)
+                # Get names of open corrals
+                open_corrals_str = ""
+                for i,corral_open in enumerate(self.corral_door_open):
+                    if corral_open:
+                        open_corrals_str += f'-{self.config["corrals"][i]["name"]}'
+
+                self.export_current_frame(postfix=f"open{open_corrals_str}", annotated_only=True)
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
             # Run servos

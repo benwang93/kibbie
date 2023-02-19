@@ -16,5 +16,8 @@ snapshots/
 # Persistence files
 persistence/
 
+# Vim files
+*.swp
+
 # Temporary files
 ~*
