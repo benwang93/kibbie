@@ -25,7 +25,7 @@
 const bool ENABLE_CURRENT_DEBUG = false;
 
 // Set to true to turn on efuse debug message (current integral)
-const bool ENABLE_EFUSE_DEBUG = true;
+const bool ENABLE_EFUSE_DEBUG = false;
 
 const float FILT_LEARNING_FACTOR = 0.95;       // Each new sample is 0.9*old + (1 - 0.9) * new
 
@@ -38,6 +38,16 @@ uint8_t CURRENT_CHANNEL_PINS[] = {
   A0, // Left door
   A1  // Right door
 };
+
+// Pin definition for efuse relays
+uint8_t EFUSE_CHANNEL_PINS[] = {
+  2,  // Left door
+  3   // Right door
+};
+
+// Efuse relay values
+#define RELAY_ON LOW
+#define RELAY_OFF HIGH
 
 // Array to store per-channel filtered current
 int rawValues[NUM_CURRENT_CHANNELS] = {0, 0};
@@ -75,6 +85,13 @@ void setup() {
     }
   }
 
+  // Enable efuses
+  for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
+    uint8_t pin = EFUSE_CHANNEL_PINS[channel];
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, RELAY_ON);
+  }
+
   // initialize serial communication at 9600 bits per second:
   Serial.begin(115200);
 
@@ -106,7 +123,7 @@ void updateEfuse(uint8_t channel) {
     float sampleToRemove = filteredCurrentWindowSamples[channel][sampleToRemoveIdx];
 
     // Replace it with the new sample
-    float currentSample = filteredCurrent[channel];
+    float currentSample = abs(filteredCurrent[channel]);
     filteredCurrentWindowSamples[channel][sampleToRemoveIdx] = currentSample;
 
     // Compute new integral
@@ -117,6 +134,7 @@ void updateEfuse(uint8_t channel) {
     if (filteredCurrentIntegralOverWindow[channel] > EFUSE_AMP_SECONDS_THRESHOLD) {
       // Blow the fuse and latch
       efuseOpenStatus[channel] = true;
+      digitalWrite(EFUSE_CHANNEL_PINS[channel], RELAY_OFF);
     }
 
     // Increment index
