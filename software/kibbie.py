@@ -68,7 +68,9 @@ class kibbie:
         # Track a filtered number of pixels per corral per cat to make door less sensitive
         # Target something like 2s time constant?
         self.filtered_pixels = []
-        self.filter_ratio = 0.95 # (every cycle, this fraction of new value will come from previous value)
+        self.filter_ratio = 0.90 # (every cycle, this fraction of new value will come from previous value)
+                                    # Use 0.95 for ~20 FPS
+                                    # Use 0.90 for 10 FPS
 
         # Track door open/close state per corral
         self.corral_door_open = [False for _ in config["corrals"]]
@@ -518,8 +520,17 @@ class kibbie:
         
         # Track FPS
         self.last_time_s = time.time()
+
+        # Similar to FPS, but to run periodically
+        previous_run_time_s = 0
         
         while(True):
+            # Slow down to run periodically
+            run_freq = 10 # Hz
+            while (time.time() - previous_run_time_s) < (1 / run_freq):
+                time.sleep(0.001)
+            previous_run_time_s = time.time()
+
             # Read camera frame and preprocess
             if not self.sample_input():
                 break
