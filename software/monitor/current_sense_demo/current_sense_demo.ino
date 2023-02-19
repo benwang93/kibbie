@@ -76,6 +76,9 @@ float filteredCurrentWindowSamples[NUM_CURRENT_CHANNELS][NUM_CURRENT_WINDOW_SAMP
 unsigned int nextFilteredCurrentWindowSamples[NUM_CURRENT_CHANNELS] = {0, 0};         // Next index in circular buffer to pop
 bool efuseOpenStatus[NUM_CURRENT_CHANNELS] = {false, false};                          // true for blown, false for closed
 
+// DC offset due to relays consuming power
+const float CURRENT_OFFSET_PER_RELAY_ON_AMPS = 0.03; // A, how much we need to add to the current value per relay that's on
+
 // the setup routine runs once when you press reset:
 void setup() {
   // Initialize current integral window to all 0s
@@ -116,6 +119,15 @@ void sampleAndFilter(uint8_t channel) {
 }
 
 void updateEfuse(uint8_t channel) {
+  // A hack to offset the current readings due to relays consuming power
+  int num_relays_on = 0;
+  for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
+    if (!efuseOpenStatus[channel]) {
+      num_relays_on++;
+    }
+  }
+  // Serial.println("Num relays on:" + String(num_relays_on));
+
   // Integrate current and update sliding window
   for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
     // First pop the value to remove
@@ -123,7 +135,7 @@ void updateEfuse(uint8_t channel) {
     float sampleToRemove = filteredCurrentWindowSamples[channel][sampleToRemoveIdx];
 
     // Replace it with the new sample
-    float currentSample = abs(filteredCurrent[channel]);
+    float currentSample = abs(filteredCurrent[channel] + (CURRENT_OFFSET_PER_RELAY_ON_AMPS * num_relays_on));
     filteredCurrentWindowSamples[channel][sampleToRemoveIdx] = currentSample;
 
     // Compute new integral
