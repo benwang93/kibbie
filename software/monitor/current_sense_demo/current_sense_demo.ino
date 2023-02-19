@@ -64,8 +64,8 @@ unsigned long nextLoopTime = 0; // Next timestamp at which to sample inputs
 // Efuse
 const int EFUSE_CALC_PERIOD_MS = 500;
 unsigned long nextEfuseCalcTime = 0;  // ms timestamp to run next efuse calculation
-const float EFUSE_AMP_SECONDS_THRESHOLD = 1.0 /*A*/ * 1 /*s*/;  // current*time threshold to blow efuse
-                                                                // Currently set low for development
+const float EFUSE_AMP_SECONDS_THRESHOLD = 1.0 /*A*/ * 10 /*s*/;  // current*time threshold to blow efuse
+                                                                // Set to 1A * 1s for testing
                                                                 // Good value is probably 1.0A for 5s or 10s
 const int NUM_SECONDS_TO_INTEGRATE = 20; // s
 const int NUM_CURRENT_WINDOW_SAMPLES = NUM_SECONDS_TO_INTEGRATE /*s*/ * (1000 / EFUSE_CALC_PERIOD_MS) /*samples/second*/;  // Integral window
