@@ -1,7 +1,9 @@
 import os
-import numpy as np
-import cv2
 import time
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 
 import lib.ImgTools as ImgTools
 import lib.KibbieServoUtils as Servo
@@ -133,6 +135,10 @@ class kibbie:
 
         # Initialize serial controller
         self.kbSerial = KibbieSerial()
+
+        # Variables for plotting current from serial
+        self.current_history = []
+        self.fig, self.ax = plt.subplots()
 
         # Initialize servo controller
         self.servo = Servo.KibbieServoUtils(self.logfile)
@@ -379,6 +385,8 @@ class kibbie:
 
             for key in self.images:
                 cv2.imwrite(f"{folder}/{key}.png", self.images[key])
+            
+            self.plot_current(f"{folder}/current.png")
 
             self.log(f'Exported current frame to "{folder}/*.png"')
 
@@ -400,6 +408,8 @@ class kibbie:
             self.export_current_frame()
         elif key == ord('h'):
             self.print_help()
+        elif key == ord('i'):
+            self.plot_current()
         elif key == ord('o'):
             self.log("Manually opening doors...")
             self.open_doors()
@@ -432,6 +442,7 @@ class kibbie:
             "  d<idx>   dispense corral at idx (will print corral index-name mapping)\n" +
             "  e        export current frame for debugging\n" +
             "  h        print this help\n" +
+            "  i        save plot of current\n" +
             "  o        open the door (manual servicing)\n" +
             "  p        pause the video (to review debug HUD)\n" +
             "  s        print status (angle and food dispensed)\n" +
@@ -466,7 +477,40 @@ class kibbie:
         self.hsv_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
         return True
+
+
+    def sample_current(self):
+        NUM_CURRENT_SAMPLES_TO_SAVE = 1000
+
+        # Add current sample
+        for i,channel_sample in enumerate(self.kbSerial.channel_current):
+            # Initialize sample if it's the first time receiving it
+            if i == len(self.current_history):
+                self.current_history.append([channel_sample])
+            else:
+                self.current_history[i].append(channel_sample)
+
+            # Remove oldest sample if too long
+            if len(self.current_history[i]) > NUM_CURRENT_SAMPLES_TO_SAVE:
+                self.current_history[i] = self.current_history[i][1:]
     
+
+    # Plot current on-demand
+    def plot_current(self, filepath="snapshots/current.png"):
+        self.fig, self.ax = plt.subplots()
+        if len(self.current_history) >= 2:
+            # self.ax.plot(range(len(self.current_history[0])), 'g^', self.current_history[0], self.current_history[0]) #, 'g^', x2, y2, 'g-')
+            self.ax.plot(range(len(self.current_history[0])), self.current_history[0]) #, 'g^', x2, y2, 'g-')
+            self.ax.plot(range(len(self.current_history[1])), self.current_history[1])
+
+        self.ax.set(xlabel='sample number', ylabel='Current (A)',
+            title='Kibbie Door Current')
+        self.ax.grid()
+        self.ax.set_ylim(-0.1, 2.0)
+
+        self.fig.savefig(filepath)
+        self.log(f"Saved plot of current to {filepath}")
+
 
     def main(self):
         # Open video capture object
@@ -485,6 +529,10 @@ class kibbie:
 
             # Display debug image
             self.refresh_image()
+
+            # Update serial
+            self.kbSerial.update()
+            self.sample_current()
 
             # Dispense food state machine
             self.dispenser_state_machine()
@@ -506,9 +554,6 @@ class kibbie:
 
             # Run servos
             self.servo.run_loop()
-
-            # Update serial
-            self.kbSerial.update()
             
             # Handle key input
             if not self.handle_keyboard_input():

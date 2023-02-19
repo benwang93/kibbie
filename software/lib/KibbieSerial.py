@@ -64,32 +64,37 @@ class KibbieSerial:
         tokens = line.split(KibbieSerial.SEPARATOR)
         opcode = tokens[0]
 
-        if opcode == "I":
-            # Current measurement
-            for i,sample in enumerate(tokens[2:]):
-                self.set_current(i, float(sample))
-            
-            print(f"Updated current: {self.channel_current}")
-        else:
-            print(f'Unrecognized token for "{line}"')
-
+        try:
+            if opcode == "I":
+                # Current measurement
+                for i,sample in enumerate(tokens[2:]):
+                    self.set_current(i, float(sample))
+                
+                print(f"Updated current: {self.channel_current}")
+            else:
+                print(f'Unrecognized token for "{line}"')
+        except Exception as e:
+            print(f"*** Error decoding serial: {e}")
 
     # Periodic function to perform receive and send operations
     # Call this from main run loop
     def update(self):
         if self.ser.isOpen():
             # Read/process any buffered messages
-            self.buffer_string += self.ser.read(self.ser.inWaiting()).decode()
+            try:
+                self.buffer_string += self.ser.read(self.ser.inWaiting()).decode()
 
-            if '\n' in self.buffer_string:
-                lines = self.buffer_string.split('\n') # Guaranteed to have at least 2 entries
+                if '\n' in self.buffer_string:
+                    lines = self.buffer_string.split('\n') # Guaranteed to have at least 2 entries
 
-                for i,line in enumerate(lines[:-1]):
-                    # Process each line
-                    # print(i, ": ", line)
-                    self.process_line(line)        
-                
-                # Remove processed lines
-                self.buffer_string = lines[-1]
+                    for i,line in enumerate(lines[:-1]):
+                        # Process each line
+                        # print(i, ": ", line)
+                        self.process_line(line)        
+                    
+                    # Remove processed lines
+                    self.buffer_string = lines[-1]
+            except Exception as e:
+                print(f"*** Failed to decode serial: {e}")
 
             # Write any buffered messages
