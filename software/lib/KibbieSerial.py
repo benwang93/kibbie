@@ -10,6 +10,11 @@ Managees reading and writing operations of Kibbie, including:
 
 import serial
 
+class EfuseStatus:
+    def __init__(self, amp_seconds=0.0, fuse_blown=False):
+        self.amp_seconds = amp_seconds
+        self.fuse_blown = fuse_blown
+
 class KibbieSerial:
     # Separator used between tokens in a message
     SEPARATOR = ","
@@ -29,6 +34,9 @@ class KibbieSerial:
 
         # Store most recent current sample
         self.channel_current = []
+
+        # Store most recent efuse status
+        self.channel_efuse_status = []
 
         # Open port
         try: 
@@ -54,6 +62,21 @@ class KibbieSerial:
             self.channel_current.append(current)
         else:
             raise Exception(f"Current channel {channel} out of bounds!")
+
+    def efuse_status(self, channel):
+        if channel < len(self.channel_efuse_status):
+            return self.channel_efuse_status[channel]
+        else:
+            return 0
+
+    def set_efuse_status(self, channel, amp_seconds, fuse_blown):
+        if channel < len(self.channel_efuse_status):
+            self.channel_efuse_status[channel].amp_seconds = amp_seconds
+            self.channel_efuse_status[channel].fuse_blown = fuse_blown
+        elif channel == len(self.channel_efuse_status):
+            self.channel_efuse_status.append(EfuseStatus(amp_seconds, fuse_blown))
+        else:
+            raise Exception(f"Current channel {channel} out of bounds!")
     
     # Helper method to process a single line of serial
     def process_line(self, line):
@@ -67,6 +90,12 @@ class KibbieSerial:
         try:
             if opcode == "I":
                 # Current measurement
+                for i,sample in enumerate(tokens[2:]):
+                    self.set_current(i, float(sample))
+                
+                print(f"Updated current: {self.channel_current}")
+            elif opcode == "F":
+                # Efuse status
                 for i,sample in enumerate(tokens[2:]):
                     self.set_current(i, float(sample))
                 

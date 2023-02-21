@@ -187,6 +187,13 @@ class kibbie:
         self.web_output_queue    = web_output_queue         # Kibbie -> web server queue for data
         self.web_command_queue   = web_command_queue        # Web server -> Kibbie queue for commands
 
+        # Track efuse status
+        self.previous_efuse_status = []
+
+        # Initialize servo controller
+        self.servo = Servo.KibbieServoUtils(self.logfile)
+        self.servo.init_servos()
+        
         self.print_help()
     
 
@@ -615,6 +622,18 @@ class kibbie:
         
         # TODO: Report efuse status
 
+    def update_operation_state(self):
+        # Check for number of operational channels
+        num_operation_channels = 0
+        for i,channel_efuse_status in enumerate(self.kbSerial.channel_efuse_status):
+
+            # Check for rising edge
+            if (not self.previous_efuse_status[i].fuse_blown and channel_efuse_status.fuse_blown):
+                self.log(f"*** Efuse blown for channel {i} with {channel_efuse_status.amp_seconds}")
+
+            # Save as previous
+            self.previous_efuse_status[i] = channel_efuse_status
+
     def main(self):
         # Open video capture object
         self.vid = cv2.VideoCapture(self.camera)
@@ -646,6 +665,9 @@ class kibbie:
             if self.kbSerial:
                 self.kbSerial.update()
                 self.sample_current()
+            
+            # Check if we need to change operation mode due to efuse state
+            self.update_operation_state()
 
             # Dispense food state machine
             self.dispenser_state_machine()
