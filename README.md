@@ -29,7 +29,7 @@ Set up chrontab for kibbie:
 
 ```
 $ crontab -e
-@reboot  /home/pi/kibbie/run.sh
+@reboot  /home/<username>/kibbie/run.sh
 ```
 
 ### PC (development)
