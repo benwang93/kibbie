@@ -12,6 +12,8 @@ DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue informa
 
 SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
 
+HEADLESS_MODE = True # True to not open doors and prompt user to initialize
+
 import time
 from .Persistence import Persistence
 
@@ -351,39 +353,41 @@ class KibbieServoUtils:
             right_dispenser_initialized = False
 
         # Initial prompt for whether the initialization sequence should be run
-        init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
-        if init_cmd == "Y":
-            # We need authority in both directions, so 90 degrees is neutral
-            print("Setting angle to neutral (90 degrees)")
-            if not left_dispenser_initialized:
-                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
-            if not right_dispenser_initialized:
-                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
-            self.block_until_servos_done()
+        if not HEADLESS_MODE:
+            init_cmd = input("\nInitializing servos. Does food need to be loaded into the dispenser? (Y/n): ")
+            if init_cmd == "Y":
+                # We need authority in both directions, so 90 degrees is neutral
+                print("Setting angle to neutral (90 degrees)")
+                if not left_dispenser_initialized:
+                    self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_NEUTRAL)
+                if not right_dispenser_initialized:
+                    self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_NEUTRAL)
+                self.block_until_servos_done()
 
-            # Wait for food to be loaded
-            print("90 degrees achieved! Please pour food in")
-            _ = input("\nHit enter to continue")
+                # Wait for food to be loaded
+                print("90 degrees achieved! Please pour food in")
+                _ = input("\nHit enter to continue")
 
-            # Load food into side 2 by moving paddles to side 1
-            print("Loading first side...")
-            if prev_dispenser_left_angle != ANGLE_DISPENSE_1:
-                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
-            else:
-                self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
-            if prev_dispenser_right_angle != ANGLE_DISPENSE_1:
-                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
-            else:
-                self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
-            self.block_until_servos_done()
-            time.sleep(1.5)
+                # Load food into side 2 by moving paddles to side 1
+                print("Loading first side...")
+                if prev_dispenser_left_angle != ANGLE_DISPENSE_1:
+                    self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_1)
+                else:
+                    self.queue_angle(CHANNEL_DISPENSER_LEFT, ANGLE_DISPENSE_2)
+                if prev_dispenser_right_angle != ANGLE_DISPENSE_1:
+                    self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_1)
+                else:
+                    self.queue_angle(CHANNEL_DISPENSER_RIGHT, ANGLE_DISPENSE_2)
+                self.block_until_servos_done()
+                time.sleep(1.5)
 
-        # Now give operator a chance to empty the tray back into the hopper
-        _ = input("\nDispenser loaded. Please empty the food tray back into the hopper and hit Enter to continue.")
+            # Now give operator a chance to empty the tray back into the hopper
+            _ = input("\nDispenser loaded. Please empty the food tray back into the hopper and hit Enter to continue.")
 
-        # Close the door
-        print("Closing the door in 5 seconds...")
-        time.sleep(5.0)
+            # Close the door
+            print("Closing the door in 5 seconds...")
+            time.sleep(5.0)
+
         print("Closing the door...")
         self.queue_angle_stepped(CHANNEL_DOOR_LEFT, ANGLE_DOOR_LEFT_CLOSED, CHANNEL_DOOR_LATCH_LEFT, ANGLE_DOOR_LATCH_LEFT_UNLOCKED, ANGLE_DOOR_LATCH_LEFT_LOCKED)
         self.queue_angle_stepped(CHANNEL_DOOR_RIGHT, ANGLE_DOOR_RIGHT_CLOSED, CHANNEL_DOOR_LATCH_RIGHT, ANGLE_DOOR_LATCH_RIGHT_UNLOCKED, ANGLE_DOOR_LATCH_RIGHT_LOCKED)
