@@ -152,7 +152,7 @@ class kibbie:
         self.fig, self.ax = plt.subplots()
 
         # Initialize servo controller
-        self.servo_lock = threading.lock()
+        self.servo_lock = threading.Lock()
         self.servo = Servo.KibbieServoUtils(self.logfile)
         self.servo.init_servos()
         self.print_help()
@@ -539,8 +539,8 @@ class kibbie:
         self.vid = cv2.VideoCapture(self.camera)
 
         # Start servo thread
-        t = threading.Thread(target=kibbie.servo_thread, args=(self.servo,))
-        t.daemon = True
+        # t = threading.Thread(target=kibbie.servo_thread, args=(self.servo,))
+        # t.daemon = True
 
         # Track FPS
         self.last_time_s = time.time()
@@ -590,7 +590,7 @@ class kibbie:
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
             # Run servos
-            # self.servo.run_loop()
+            self.servo.run_loop()
             
             # Handle key input
             if not self.handle_keyboard_input():
@@ -615,16 +615,11 @@ class kibbie:
 # Main
 ########################
 if __name__=="__main__":
-    if IS_RASPBERRY_PI:
-        camera = 0
-    else:
-        camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
+    kb = kibbie(
+        # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
         # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        # camera=0,                                                               # Real camera
-
-    kb = kibbie(
-        camera = camera,
+        camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
