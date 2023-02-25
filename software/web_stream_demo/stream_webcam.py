@@ -1,7 +1,7 @@
 # Source: https://pyimagesearch.com/2019/09/02/opencv-stream-video-to-web-browser-html-page/
 
 # import the necessary packages
-from pyimagesearch.motion_detection import SingleMotionDetector
+# from pyimagesearch.motion_detection import SingleMotionDetector
 from imutils.video import VideoStream
 from flask import Response
 from flask import Flask
@@ -31,20 +31,6 @@ def index():
 	# return the rendered template
 	return render_template("index.html")
 
-	# loop over frames from the video stream
-	while True:
-		# read the next frame from the video stream, resize it,
-		# convert the frame to grayscale, and blur it
-		frame = vs.read()
-		frame = imutils.resize(frame, width=400)
-		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-		gray = cv2.GaussianBlur(gray, (7, 7), 0)
-		# grab the current timestamp and draw it on the frame
-		timestamp = datetime.datetime.now()
-		cv2.putText(frame, timestamp.strftime(
-			"%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
-			cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-
 def generate():
 	# grab global references to the output frame and lock variables
 	global outputFrame, lock
@@ -65,6 +51,25 @@ def generate():
 		yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
 			bytearray(encodedImage) + b'\r\n')
 
+outputFrame = None
+
+def detect_motion():
+    global outputFrame
+    # loop over frames from the video stream
+    while True:
+        # read the next frame from the video stream, resize it,
+        # convert the frame to grayscale, and blur it
+        frame = vs.read()
+        frame = imutils.resize(frame, width=400)
+        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.GaussianBlur(gray, (7, 7), 0)
+        # grab the current timestamp and draw it on the frame
+        timestamp = datetime.datetime.now()
+        with lock:
+            outputFrame = cv2.putText(frame, timestamp.strftime(
+                "%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+
 @app.route("/video_feed")
 def video_feed():
 	# return the response generated along with the specific media
@@ -84,12 +89,12 @@ if __name__ == '__main__':
 		help="# of frames used to construct the background model")
 	args = vars(ap.parse_args())
 	# start a thread that will perform motion detection
-	t = threading.Thread(target=detect_motion, args=(
-		args["frame_count"],))
+	t = threading.Thread(target=detect_motion)
 	t.daemon = True
 	t.start()
 	# start the flask app
 	app.run(host=args["ip"], port=args["port"], debug=True,
 		threaded=True, use_reloader=False)
+
 # release the video stream pointer
 vs.stop()
