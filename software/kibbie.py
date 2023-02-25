@@ -11,6 +11,8 @@ import lib.KibbieServoUtils as Servo
 from lib.Dispenser import Dispenser
 from lib.KibbieSerial import KibbieSerial
 
+from lib.Parameters import *
+
 ########################
 # Constants
 ########################
@@ -137,7 +139,10 @@ class kibbie:
         self.mask_has_disallowed_cat = [False]*Servo.NUM_CHANNELS_USED
 
         # Initialize serial controller (and efuse controller)
-        self.kbSerial = KibbieSerial()
+        if IS_ARDUINO_MONITOR_ATTACHED:
+            self.kbSerial = KibbieSerial()
+        else:
+            self.kbSerial = None
 
         # Wait a bit before initializing servos so efuse controller can stabilize
         time.sleep(0.5)
@@ -490,16 +495,17 @@ class kibbie:
         NUM_CURRENT_SAMPLES_TO_SAVE = 1000
 
         # Add current sample
-        for i,channel_sample in enumerate(self.kbSerial.channel_current):
-            # Initialize sample if it's the first time receiving it
-            if i == len(self.current_history):
-                self.current_history.append([channel_sample])
-            else:
-                self.current_history[i].append(channel_sample)
+        if self.kbSerial:
+            for i,channel_sample in enumerate(self.kbSerial.channel_current):
+                # Initialize sample if it's the first time receiving it
+                if i == len(self.current_history):
+                    self.current_history.append([channel_sample])
+                else:
+                    self.current_history[i].append(channel_sample)
 
-            # Remove oldest sample if too long
-            if len(self.current_history[i]) > NUM_CURRENT_SAMPLES_TO_SAVE:
-                self.current_history[i] = self.current_history[i][1:]
+                # Remove oldest sample if too long
+                if len(self.current_history[i]) > NUM_CURRENT_SAMPLES_TO_SAVE:
+                    self.current_history[i] = self.current_history[i][1:]
     
 
     # Plot current on-demand
@@ -560,8 +566,9 @@ class kibbie:
             self.refresh_image()
 
             # Update serial
-            self.kbSerial.update()
-            self.sample_current()
+            if self.kbSerial:
+                self.kbSerial.update()
+                self.sample_current()
 
             # Dispense food state machine
             self.dispenser_state_machine()
@@ -608,11 +615,16 @@ class kibbie:
 # Main
 ########################
 if __name__=="__main__":
-    kb = kibbie(
-        # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
+    if IS_RASPBERRY_PI:
+        camera = 0
+    else:
+        camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
         # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
         # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        camera=0,                                                               # Real camera
+        # camera=0,                                                               # Real camera
+
+    kb = kibbie(
+        camera = camera,
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
