@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 
 import cv2
 import matplotlib.pyplot as plt
@@ -146,6 +147,7 @@ class kibbie:
         self.fig, self.ax = plt.subplots()
 
         # Initialize servo controller
+        self.servo_lock = threading.lock()
         self.servo = Servo.KibbieServoUtils(self.logfile)
         self.servo.init_servos()
         self.print_help()
@@ -516,11 +518,24 @@ class kibbie:
         self.fig.savefig(filepath)
         self.log(f"Saved plot of current to {filepath}")
 
+    # Separate thread to operate servos, so main processing
+    # doesn't stutter/hang servo operation
+    def servo_thread(self, servo_instance):
+        while True:
+            with self.servo_lock:
+                servo_instance.run_loop()
+
+            # Operate at 20 Hz
+            time.sleep(0.05)
 
     def main(self):
         # Open video capture object
         self.vid = cv2.VideoCapture(self.camera)
-        
+
+        # Start servo thread
+        t = threading.Thread(target=kibbie.servo_thread, args=(self.servo,))
+        t.daemon = True
+
         # Track FPS
         self.last_time_s = time.time()
 
@@ -553,7 +568,8 @@ class kibbie:
 
             # Check if there are any servo actions to perform
             # Includes door open/close and scheduled dispenser checks
-            self.check_and_operate_servos()
+            with self.servo_lock:
+                self.check_and_operate_servos()
 
             # Export current frame while door open, if enabled
             if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
@@ -567,7 +583,7 @@ class kibbie:
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
             # Run servos
-            self.servo.run_loop()
+            # self.servo.run_loop()
             
             # Handle key input
             if not self.handle_keyboard_input():
