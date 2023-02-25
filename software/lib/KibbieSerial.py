@@ -98,8 +98,10 @@ class KibbieSerial:
                 # Efuse status
                 for i,sample in enumerate(tokens[2:]):
                     self.set_current(i, float(sample))
+                self.set_efuse_status(0, float(tokens[2]), bool(tokens[3]))
+                self.set_efuse_status(1, float(tokens[4]), bool(tokens[5]))
                 
-                print(f"Updated current: {self.channel_current}")
+                print(f"Updated efuse status: {self.channel_efuse_status}")
             else:
                 print(f'Unrecognized token for "{line}"')
         except Exception as e:
