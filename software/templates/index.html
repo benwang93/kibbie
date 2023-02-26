@@ -5,8 +5,28 @@
 </head>
 
 <body>
-    <h1>Pi Video Surveillance</h1>
+    <h1>Kibbie</h1>
     <img src="{{ url_for('video_feed') }}">
+
+    <table>
+        <tr>
+            <th>Field</th>
+            <th>Left</th>
+            <th>Right</th>
+        </tr>
+        <tr>
+            <td>Current</td>
+            {% if left_current %}
+            <td>{{ left_current }}</td>
+            {% else %}
+            <td>?</td>
+            {% endif %} {% if right_current %}
+            <td>{{ right_current }}</td>
+            {% else %}
+            <td>?</td>
+            {% endif %}
+        </tr>
+    </table>
 </body>
 
 </html>

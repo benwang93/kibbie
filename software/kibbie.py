@@ -56,6 +56,15 @@ MASK_REGION_LEFT = [[356.0, 376.0], [350.0, 20.0], [626.0, 22.0], [630.0, 296.0]
 SERVO_PROCESS_PERIOD_S = 0.05 # s, 20 Hz
 
 
+########################
+# Globals
+########################
+
+# Set up shared queues
+servo_command_queue = Queue()   # Kibbie -> Servo queue for commands
+servo_log_queue = Queue()       # Servo -> Kibbie queue for logs to write to disk
+web_output_queue = Queue()      # Kibbie -> Web server queue for images
+
 
 ########################
 # Main class
@@ -65,7 +74,7 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_image_queue) -> None:
+    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_output_queue) -> None:
         # Open log file (append mode)
         self.logfile = open(log_filename, 'a')
         self.log("=====================================")
@@ -171,7 +180,7 @@ class kibbie:
         # self.servo_process_handle.start()
         self.servo_command_queue = servo_command_queue      # Kibbie -> Servo queue for commands
         self.servo_log_queue     = servo_log_queue          # Servo -> Kibbie queue for logs to write to disk
-        self.web_image_queue     = web_image_queue          # Kibbie -> web server queue for images
+        self.web_output_queue     = web_output_queue          # Kibbie -> web server queue for images
 
         self.print_help()
     
@@ -711,6 +720,10 @@ def servo_process( command_queue, log_queue):
 # exchanges of the output frames (useful when multiple browsers/tabs
 # are viewing the stream)
 outputFrame = None
+left_current = None
+right_current = None
+left_next_dispense_time = None
+right_next_dispense_time = None
 lock = threading.Lock()
 # initialize a flask object
 app = Flask(__name__)
@@ -727,14 +740,14 @@ def index():
 
 def generate():
     # grab global references to the output frame and lock variables
-    global outputFrame, lock, web_image_queue
+    global outputFrame, lock, web_output_queue
     # loop over frames from the output stream
     while True:
         last_image = None
 
         # Wait until we have an image
-        while not web_image_queue.empty():
-            last_image = web_image_queue.get()
+        while not web_output_queue.empty():
+            last_image = web_output_queue.get()
 
         # wait until the lock is acquired
         with lock:
@@ -783,7 +796,7 @@ def video_feed():
 # Kibbie process
 ########################
 
-def kibbie_process(servo_command_queue, servo_log_queue, web_image_queue):
+def kibbie_process(servo_command_queue, servo_log_queue, web_output_queue):
     
     kb = kibbie(
         camera=CAMERA_DEVICE,
@@ -845,7 +858,7 @@ def kibbie_process(servo_command_queue, servo_log_queue, web_image_queue):
         },
         servo_command_queue=servo_command_queue,
         servo_log_queue=servo_log_queue,
-        web_image_queue=web_image_queue,
+        web_output_queue=web_output_queue,
     )
     kb.main()
 
@@ -855,9 +868,9 @@ def kibbie_process(servo_command_queue, servo_log_queue, web_image_queue):
 if __name__=="__main__":
     # construct the argument parser and parse command line arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--ip", type=str, required=True,
+    ap.add_argument("-i", "--ip", type=str, default="0.0.0.0",
         help="ip address of the device")
-    ap.add_argument("-o", "--port", type=int, required=True,
+    ap.add_argument("-o", "--port", type=int, default=80,
         help="ephemeral port number of the server (1024 to 65535)")
     ap.add_argument("-f", "--frame-count", type=int, default=32,
         help="# of frames used to construct the background model")
@@ -869,13 +882,14 @@ if __name__=="__main__":
     # start the flask app
     app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
 
+    # Set up kibbie process
+    kibbie_process_handle = Process(target=kibbie_process, args=(servo_command_queue, servo_log_queue, web_output_queue))
+    kibbie_process_handle.start()
+
     # Set up servo process
-    servo_command_queue = Queue()   # Kibbie -> Servo queue for commands
-    servo_log_queue = Queue()       # Servo -> Kibbie queue for logs to write to disk
-    web_image_queue = Queue()       # Kibbie -> Web server queue for images
-    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue, web_image_queue,))
+    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue,))
     servo_process_handle.start()
     
-    
     # Wait for process to complete here
+    kibbie_process_handle.join()
     servo_process_handle.join()
