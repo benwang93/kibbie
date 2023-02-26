@@ -2,9 +2,7 @@
 Various shared debug parameters
 """
 
-# What hardware are you running on?
-IS_RASPBERRY_PI = True # Raspberry Pi
-# IS_RASPBERRY_PI = False # Desktop
+from .HardwareParameters import *
 
 # Is the kibbie monitor attached?
 IS_ARDUINO_MONITOR_ATTACHED = IS_RASPBERRY_PI

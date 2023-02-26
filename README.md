@@ -36,6 +36,20 @@ $ crontab -e
 
 Run `setup_desktop.sh` to set up virtualenv and install development packages.
 
+To ignore the `HardwareParameters.py` file, run:
+
+```
+git update-index --assume-unchanged software\lib\HardwareParameters.py
+```
+
+To start tracking again:
+
+```
+git update-index --no-assume-unchanged software\lib\HardwareParameters.py
+```
+
+Source: https://stackoverflow.com/questions/23673174/how-to-ignore-new-changes-to-a-tracked-file-with-git
+
 ### Software
 
 #### FreeCAD
