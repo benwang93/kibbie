@@ -104,9 +104,9 @@ class servo_queue_item:
 
 
 class KibbieServoUtils:
-    def __init__(self, logfile):
+    def __init__(self, log_queue):
         # Logging
-        self.logfile = logfile
+        self.log_queue = log_queue
 
         # Save startup time to track uptime
         self.init_time = time.time()
@@ -129,8 +129,7 @@ class KibbieServoUtils:
 
     def log(self, s):
         output = f"[{time.asctime()}][KibbieServoUtils] {s}"
-        self.logfile.write(f"{output}\n")
-        self.logfile.flush()
+        self.log_queue.put(output)
         print(output)
 
 

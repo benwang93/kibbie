@@ -1,6 +1,6 @@
 import os
 import time
-import threading
+from multiprocessing import Process, Queue
 
 import cv2
 import matplotlib.pyplot as plt
@@ -42,6 +42,11 @@ FRAME_PERIOD_MS = 1
 # Gray background video on actual kibbie HW:
 MASK_REGION_RIGHT = [[316.0, 378.0], [326.0, 26.0], [18.0, 30.0], [22.0, 286.0], [122.0, 286.0], [140.0, 364.0]]
 MASK_REGION_LEFT = [[356.0, 376.0], [350.0, 20.0], [626.0, 22.0], [630.0, 296.0], [550.0, 302.0], [534.0, 372.0]]
+
+
+# How often the servo process executes
+SERVO_PROCESS_PERIOD_S = 0.05 # s, 20 Hz
+
 
 
 ########################
@@ -151,17 +156,86 @@ class kibbie:
         self.current_history = []
         self.fig, self.ax = plt.subplots()
 
-        # Initialize servo controller
-        self.servo_lock = threading.Lock()
-        self.servo = Servo.KibbieServoUtils(self.logfile)
-        self.servo.init_servos()
+        # Initialize servo controller on a separate process (not hung up by main thread processing)
+        self.servo_command_queue = Queue()      # Kibbie -> Servo queue for commands
+        self.servo_log_queue = Queue()  # Servo -> Kibbie queue for logs to write to disk
+        self.servo_process_handle = Process(target=self.servo_process, args=(self.servo_command_queue, self.servo_log_queue,))
+        self.servo_process_handle.start()
+
         self.print_help()
     
 
     def __del__(self):
         self.log("Kibbie shutting down...")
         self.logfile.close()
+
+    #############################################################
+    # Servo process methods
+    #############################################################
     
+    # Main servo process function
+    def servo_process(self, command_queue, log_queue):
+        print(f"*** servo_process: Starting...")
+
+        servo = Servo.KibbieServoUtils(log_queue)
+        servo.init_servos()
+
+        while(1):
+            # Fetch any commands
+            while not command_queue.empty():
+                command = command_queue.get()
+                opcode = command[0]
+
+                print(f"*** servo_process: Executing '{opcode}'")
+
+                # Process command / check for exit
+                if opcode == "exit":
+                    return
+                if opcode == "queue_angle_stepped":
+                    channel = command[1]
+                    target_angle = command[2]
+                    latch_channel = command[3]
+                    latch_angle_unlocked = command[4]
+                    latch_angle_locked = command[5]
+                    offset_seconds = command[6]
+                    servo.queue_angle_stepped(channel, target_angle, latch_channel, latch_angle_unlocked, latch_angle_locked, offset_seconds)
+
+                elif opcode == "dispense_food":
+                    channel = command[1]
+                    servo.dispense_food(channel)
+                
+                elif opcode == "print_status":
+                    servo.print_status()
+            
+            servo.run_loop()
+            
+            # Run servos at 20 Hz
+            time.sleep(SERVO_PROCESS_PERIOD_S)
+
+    # Helper function to queue servo actions
+    def queue_servo_angle_stepped(self, channel, target_angle, latch_channel, latch_angle_unlocked, latch_angle_locked, offset_seconds=0):
+        self.servo_command_queue.put(["queue_angle_stepped", channel, target_angle, latch_channel, latch_angle_unlocked, latch_angle_locked, offset_seconds])
+    
+    def queue_servo_dispense_food(self, channel):
+        self.servo_command_queue.put(["dispense_food", channel])
+    
+    def queue_servo_print_status(self):
+        self.servo_command_queue.put(["print_status"])
+    
+    def queue_servo_exit(self):
+        self.servo_command_queue.put(["exit"])
+    
+    # Periodic function to log servo output to log file
+    def process_servo_log_queue(self):
+        while not self.servo_log_queue.empty():
+            output = self.servo_log_queue.get()
+            self.logfile.write(f"{output}\n")
+            self.logfile.flush()
+
+
+    #############################################################
+    # Main process methods
+    #############################################################
 
     # Utility to write to the log file and print to console
     def log(self, s):
@@ -262,19 +336,26 @@ class kibbie:
         for i,corral in enumerate(self.config["corrals"]):
             # Check for corral door-open conditions or actively dispensing
             if (self.mask_has_allowed_cat[i] and not self.mask_has_disallowed_cat[i]) or self.corral_dispensers[i].open_door_request:
-                self.corral_door_open[i] = True
-                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
+                if not self.corral_door_open[i]:
+                    # Detected a change
                     self.log(f'Opening {corral["name"]} door')
                     self.export_current_frame(postfix=f'opening-{corral["name"]}', annotated_only=True)
                     if self.config["saveSnapshotWhileDoorOpenPeriodSeconds"] > 0:
                         self.export_frame_on_timer = True
                         self.next_export_frame_on_timer_time = (time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"])
+                self.corral_door_open[i] = True
+
+                self.queue_servo_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"])
+
             else:
-                self.corral_door_open[i] = False
-                if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
+                if self.corral_door_open[i]:
+                    # Detected a change
                     self.log(f'Closing {corral["name"]} door')
                     self.export_frame_on_timer = False
                     self.export_current_frame(f'closing-{corral["name"]}', annotated_only=True)
+
+                self.corral_door_open[i] = False
+                self.queue_servo_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"])
             
             # Check for dispenser commands
             if self.corral_dispensers[i].dispense_request:
@@ -284,7 +365,7 @@ class kibbie:
                     self.log(f'Dispensing food in corral {corral["name"]}')
 
                     # Request dispense once
-                    self.servo.dispense_food(corral["dispenserServoChannel"])
+                    self.dispense_food(corral["dispenserServoChannel"])
             else:
                 # Reset flag
                 self.corral_dispensing[i] = False
@@ -293,21 +374,24 @@ class kibbie:
     # Used as part of shut-down sequence
     def close_doors(self):
         for i,corral in enumerate(self.config["corrals"]):
-            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
-                self.log(f'Closing {corral["name"]} door')
+            self.queue_servo_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleClosed"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"])
+            self.log(f'Closing {corral["name"]} door')
         
-        self.servo.block_until_servos_done()
+        # self.servo.block_until_servos_done()
+        # FIXME: Wait hard-coded time for doors to close until we can get feedback from servo process that doors are all closed
+        time.sleep(5.0)
         self.log(f'Doors closed')
 
 
     # Used as part of manual servicing sequence
     def open_doors(self):
         for i,corral in enumerate(self.config["corrals"]):
-            if self.servo.queue_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"]):
-                self.log(f'Opening {corral["name"]} door')
+            self.queue_servo_angle_stepped(corral["doorServoChannel"], corral["doorServoAngleOpen"], corral["doorLatchServoChannel"], corral["doorLatchServoAngleUnlocked"], corral["doorLatchServoAngleLocked"])
+            self.log(f'Opening {corral["name"]} door')
         
-        self.servo.block_until_servos_done()
-        self.log(f'Doors opened')
+        # We used to block until servos were done moving, but don't have a solution right now after moving servo to its own process
+        # self.servo.block_until_servos_done()
+        # self.log(f'Doors opened')
 
 
     # Presents image and overlays any masks
@@ -432,7 +516,9 @@ class kibbie:
             print("PAUSED. Press any key to continue...")
             cv2.waitKey(0)
         elif key == ord('s'):
-            self.servo.print_status()
+            self.queue_servo_print_status()
+            time.sleep(2 * SERVO_PROCESS_PERIOD_S)  # Wait for servo process to complete request
+            self.process_servo_log_queue()
             for dispenser in self.corral_dispensers:
                 dispenser.print_status()
         elif key == ord('q'):
@@ -524,23 +610,9 @@ class kibbie:
         self.fig.savefig(filepath)
         self.log(f"Saved plot of current to {filepath}")
 
-    # Separate thread to operate servos, so main processing
-    # doesn't stutter/hang servo operation
-    def servo_thread(self, servo_instance):
-        while True:
-            with self.servo_lock:
-                servo_instance.run_loop()
-
-            # Operate at 20 Hz
-            time.sleep(0.05)
-
     def main(self):
         # Open video capture object
         self.vid = cv2.VideoCapture(self.camera)
-
-        # Start servo thread
-        # t = threading.Thread(target=kibbie.servo_thread, args=(self.servo,))
-        # t.daemon = True
 
         # Track FPS
         self.last_time_s = time.time()
@@ -575,8 +647,7 @@ class kibbie:
 
             # Check if there are any servo actions to perform
             # Includes door open/close and scheduled dispenser checks
-            with self.servo_lock:
-                self.check_and_operate_servos()
+            self.check_and_operate_servos()
 
             # Export current frame while door open, if enabled
             if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
@@ -589,8 +660,8 @@ class kibbie:
                 self.export_current_frame(postfix=f"open{open_corrals_str}", annotated_only=True)
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
-            # Run servos
-            self.servo.run_loop()
+            # Log any output from servos
+            self.process_servo_log_queue()
             
             # Handle key input
             if not self.handle_keyboard_input():
@@ -610,6 +681,11 @@ class kibbie:
         # previous state
         self.close_doors()
 
+        # Wait for doors to close, then exit child processes
+        self.queue_servo_exit()
+        
+        self.servo_process_handle.join()
+
 
 ########################
 # Main
@@ -618,8 +694,8 @@ if __name__=="__main__":
     kb = kibbie(
         # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
         # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
-        # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        camera=0,                                                               # Real camera
+        camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
+        # camera=0,                                                               # Real camera
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
