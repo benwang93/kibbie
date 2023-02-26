@@ -63,7 +63,9 @@ SERVO_PROCESS_PERIOD_S = 0.05 # s, 20 Hz
 # Set up shared queues
 servo_command_queue = Queue()   # Kibbie -> Servo queue for commands
 servo_log_queue = Queue()       # Servo -> Kibbie queue for logs to write to disk
-web_output_queue = Queue()      # Kibbie -> Web server queue for images
+web_video_queue = Queue()       # Kibbie -> Web server queue for images
+web_output_queue = Queue()      # Kibbie -> Web server queue for data
+web_command_queue = Queue()     # Web server -> Kibbie queue for commands
 
 
 ########################
@@ -74,7 +76,7 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_output_queue) -> None:
+    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue) -> None:
         # Open log file (append mode)
         self.logfile = open(log_filename, 'a')
         self.log("=====================================")
@@ -180,7 +182,9 @@ class kibbie:
         # self.servo_process_handle.start()
         self.servo_command_queue = servo_command_queue      # Kibbie -> Servo queue for commands
         self.servo_log_queue     = servo_log_queue          # Servo -> Kibbie queue for logs to write to disk
-        self.web_output_queue     = web_output_queue          # Kibbie -> web server queue for images
+        self.web_video_queue     = web_video_queue          # Kibbie -> web server queue for images
+        self.web_output_queue    = web_output_queue         # Kibbie -> web server queue for data
+        self.web_command_queue   = web_command_queue        # Web server -> Kibbie queue for commands
 
         self.print_help()
     
@@ -643,6 +647,9 @@ class kibbie:
                 self.export_current_frame(postfix=f"open{open_corrals_str}", annotated_only=True)
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
 
+            # Update output to web server
+            self.web_video_queue.put(self.images["corrals"])
+
             # Log any output from servos
             self.process_servo_log_queue()
             
@@ -740,26 +747,32 @@ def index():
 
 def generate():
     # grab global references to the output frame and lock variables
-    global outputFrame, lock, web_output_queue
+    global outputFrame, lock, web_video_queue
     # loop over frames from the output stream
     while True:
-        last_image = None
-
-        # Wait until we have an image
-        while not web_output_queue.empty():
-            last_image = web_output_queue.get()
-
         # wait until the lock is acquired
         with lock:
+            last_image = None
+
+            # Wait until we have an image
+            while not web_video_queue.empty():
+                last_image = web_video_queue.get()
+            
+            if last_image is not None:
+                # Update global now
+                outputFrame = last_image
+
             # check if the output frame is available, otherwise skip
             # the iteration of the loop
             if outputFrame is None:
                 continue
+
             # encode the frame in JPEG format
             (flag, encodedImage) = cv2.imencode(".jpg", outputFrame)
             # ensure the frame was successfully encoded
             if not flag:
                 continue
+        
         # yield the output frame in the byte format
         yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
             bytearray(encodedImage) + b'\r\n')
@@ -796,7 +809,7 @@ def video_feed():
 # Kibbie process
 ########################
 
-def kibbie_process(servo_command_queue, servo_log_queue, web_output_queue):
+def kibbie_process(servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue):
     
     kb = kibbie(
         camera=CAMERA_DEVICE,
@@ -858,7 +871,9 @@ def kibbie_process(servo_command_queue, servo_log_queue, web_output_queue):
         },
         servo_command_queue=servo_command_queue,
         servo_log_queue=servo_log_queue,
+        web_video_queue=web_video_queue,
         web_output_queue=web_output_queue,
+        web_command_queue=web_command_queue,
     )
     kb.main()
 
@@ -879,16 +894,17 @@ if __name__=="__main__":
     # t = threading.Thread(target=detect_motion, )
     # t.daemon = True
     # t.start()
-    # start the flask app
-    app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
 
     # Set up kibbie process
-    kibbie_process_handle = Process(target=kibbie_process, args=(servo_command_queue, servo_log_queue, web_output_queue))
+    kibbie_process_handle = Process(target=kibbie_process, args=(servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue))
     kibbie_process_handle.start()
 
     # Set up servo process
     servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue,))
     servo_process_handle.start()
+
+    # start the flask app
+    app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
     
     # Wait for process to complete here
     kibbie_process_handle.join()
