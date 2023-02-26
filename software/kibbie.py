@@ -65,7 +65,7 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue) -> None:
+    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_image_queue) -> None:
         # Open log file (append mode)
         self.logfile = open(log_filename, 'a')
         self.log("=====================================")
@@ -171,6 +171,7 @@ class kibbie:
         # self.servo_process_handle.start()
         self.servo_command_queue = servo_command_queue      # Kibbie -> Servo queue for commands
         self.servo_log_queue     = servo_log_queue          # Servo -> Kibbie queue for logs to write to disk
+        self.web_image_queue     = web_image_queue          # Kibbie -> web server queue for images
 
         self.print_help()
     
@@ -726,9 +727,15 @@ def index():
 
 def generate():
     # grab global references to the output frame and lock variables
-    global outputFrame, lock
+    global outputFrame, lock, web_image_queue
     # loop over frames from the output stream
     while True:
+        last_image = None
+
+        # Wait until we have an image
+        while not web_image_queue.empty():
+            last_image = web_image_queue.get()
+
         # wait until the lock is acquired
         with lock:
             # check if the output frame is available, otherwise skip
@@ -746,22 +753,23 @@ def generate():
 
 outputFrame = None
 
-def detect_motion():
-    global outputFrame
-    # loop over frames from the video stream
-    while True:
-        # read the next frame from the video stream, resize it,
-        # convert the frame to grayscale, and blur it
-        frame = vs.read()
-        frame = imutils.resize(frame, width=400)
-        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # gray = cv2.GaussianBlur(gray, (7, 7), 0)
-        # grab the current timestamp and draw it on the frame
-        timestamp = datetime.datetime.now()
-        with lock:
-            outputFrame = cv2.putText(frame, timestamp.strftime(
-                "%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+# def detect_motion():
+#     global outputFrame
+#     # loop over frames from the video stream
+#     while True:
+#         while not 
+#         # read the next frame from the video stream, resize it,
+#         # convert the frame to grayscale, and blur it
+#         frame = vs.read()
+#         frame = imutils.resize(frame, width=400)
+#         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#         # gray = cv2.GaussianBlur(gray, (7, 7), 0)
+#         # grab the current timestamp and draw it on the frame
+#         timestamp = datetime.datetime.now()
+#         with lock:
+#             outputFrame = cv2.putText(frame, timestamp.strftime(
+#                 "%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
+#                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
 @app.route("/video_feed")
 def video_feed():
@@ -772,33 +780,10 @@ def video_feed():
 
 
 ########################
-# Main
+# Kibbie process
 ########################
-if __name__=="__main__":
-    # construct the argument parser and parse command line arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--ip", type=str, required=True,
-        help="ip address of the device")
-    ap.add_argument("-o", "--port", type=int, required=True,
-        help="ephemeral port number of the server (1024 to 65535)")
-    ap.add_argument("-f", "--frame-count", type=int, default=32,
-        help="# of frames used to construct the background model")
-    args = vars(ap.parse_args())
-    # start a thread that will perform motion detection
-    t = threading.Thread(target=detect_motion)
-    t.daemon = True
-    t.start()
-    # start the flask app
-    app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
 
-    # Set up servo process
-    servo_command_queue = Queue()      # Kibbie -> Servo queue for commands
-    servo_log_queue = Queue()  # Servo -> Kibbie queue for logs to write to disk
-    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue,))
-    servo_process_handle.start()
-
-    # Set up web server process
-
+def kibbie_process(servo_command_queue, servo_log_queue, web_image_queue):
     
     kb = kibbie(
         camera=CAMERA_DEVICE,
@@ -860,8 +845,37 @@ if __name__=="__main__":
         },
         servo_command_queue=servo_command_queue,
         servo_log_queue=servo_log_queue,
+        web_image_queue=web_image_queue,
     )
     kb.main()
+
+########################
+# Main
+########################
+if __name__=="__main__":
+    # construct the argument parser and parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--ip", type=str, required=True,
+        help="ip address of the device")
+    ap.add_argument("-o", "--port", type=int, required=True,
+        help="ephemeral port number of the server (1024 to 65535)")
+    ap.add_argument("-f", "--frame-count", type=int, default=32,
+        help="# of frames used to construct the background model")
+    args = vars(ap.parse_args())
+    # start a thread that will perform motion detection
+    # t = threading.Thread(target=detect_motion, )
+    # t.daemon = True
+    # t.start()
+    # start the flask app
+    app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
+
+    # Set up servo process
+    servo_command_queue = Queue()   # Kibbie -> Servo queue for commands
+    servo_log_queue = Queue()       # Servo -> Kibbie queue for logs to write to disk
+    web_image_queue = Queue()       # Kibbie -> Web server queue for images
+    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue, web_image_queue,))
+    servo_process_handle.start()
+    
     
     # Wait for process to complete here
     servo_process_handle.join()
