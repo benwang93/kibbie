@@ -14,7 +14,7 @@ from lib.KibbieSerial import KibbieSerial
 from lib.Parameters import *
 
 # Imports for web server
-from imutils.video import VideoStream
+# from imutils.video import VideoStream
 from flask import Response
 from flask import Flask
 from flask import render_template
@@ -760,7 +760,8 @@ def generate():
             
             if last_image is not None:
                 # Update global now
-                outputFrame = last_image
+                outputFrame = cv2.putText(last_image, time.asctime(), (10, last_image.shape[0] - 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
 
             # check if the output frame is available, otherwise skip
             # the iteration of the loop
