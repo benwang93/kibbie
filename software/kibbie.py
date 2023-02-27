@@ -330,7 +330,7 @@ class kibbie:
                     self.log(f'Dispensing food in corral {corral["name"]}')
 
                     # Request dispense once
-                    self.dispense_food(corral["dispenserServoChannel"])
+                    self.queue_servo_dispense_food(corral["dispenserServoChannel"])
             else:
                 # Reset flag
                 self.corral_dispensing[i] = False
