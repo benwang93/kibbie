@@ -18,6 +18,7 @@ from lib.Parameters import *
 from flask import Response
 from flask import Flask
 from flask import render_template
+from flask import request
 import threading
 import argparse
 
@@ -596,6 +597,23 @@ class kibbie:
 
         self.fig.savefig(filepath)
         self.log(f"Saved plot of current to {filepath}")
+    
+    # Populate status queue to report to web page
+    def report_status_to_server(self):
+        # Report door open status
+        for i,corral_open in enumerate(self.corral_door_open):
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} open?', str(corral_open)))
+
+        # Report current
+        for i,channel_current in enumerate(self.current_history):
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} current (A)', str(channel_current)))
+
+        # Report next dispense
+        for i,dispenser in enumerate(self.corral_dispensers):
+            next_dispense = time.asctime(time.localtime(dispenser.persistence.get('next_dispense_time')))
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} next dispense', str(next_dispense)))
+        
+        # TODO: Report efuse status
 
     def main(self):
         # Open video capture object
@@ -649,6 +667,7 @@ class kibbie:
 
             # Update output to web server
             self.web_video_queue.put(self.images["corrals"])
+            self.report_status_to_server()
 
             # Log any output from servos
             self.process_servo_log_queue()
@@ -740,8 +759,38 @@ app = Flask(__name__)
 # vs = VideoStream(src=0).start()
 # time.sleep(2.0)
 
+# String used to store status output for streaming
+status_dict = {}
+status_string = "STATUS UNAVAILABLE..."
+status_lock = threading.Lock()
+
 @app.route("/")
 def index():
+    # Stream status text
+    # Reference: https://stackoverflow.com/questions/13386681/streaming-data-with-python-and-flask
+    if request.headers.get('accept') == 'text/event-stream':
+        def events():
+            global status_dict, status_string, web_output_queue, status_lock
+            while True:
+                with status_lock:
+                    update = False
+                    while not web_output_queue.empty():
+                        # An array where elt 0 is key and elt 1 is value
+                        (status_key,status_value) = web_output_queue.get()
+                        status_dict[status_key] = status_value
+                        update = True
+                    
+                    if update:
+                        # Build status string from status dict
+                        status_string = ""
+                        for key in status_dict:
+                            status_string += f"{key}: {status_dict[key]}  "
+
+                yield f"data: {status_string}\n\n"
+                time.sleep(.1)  # an artificial delay
+
+        return Response(events(), content_type='text/event-stream')
+    
     # return the rendered template
     return render_template("index.html")
 
