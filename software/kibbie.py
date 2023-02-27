@@ -602,7 +602,7 @@ class kibbie:
     def report_status_to_server(self):
         # Report door open status
         for i,corral_open in enumerate(self.corral_door_open):
-            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} open?', str(corral_open)))
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} open', str(corral_open)))
 
         # Report current
         for i,channel_current in enumerate(self.current_history):
