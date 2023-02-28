@@ -193,7 +193,7 @@ class kibbie:
         # Initialize servo controller
         self.servo = Servo.KibbieServoUtils(self.logfile)
         self.servo.init_servos()
-        
+
         self.print_help()
     
 
@@ -623,6 +623,9 @@ class kibbie:
         # TODO: Report efuse status
 
     def update_operation_state(self):
+        if self.kbSerial is None:
+            return
+            
         # Check for number of operational channels
         num_operation_channels = 0
         for i,channel_efuse_status in enumerate(self.kbSerial.channel_efuse_status):
