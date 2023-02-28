@@ -9,6 +9,7 @@ Managees reading and writing operations of Kibbie, including:
 """
 
 import serial
+from .Parameters import *
 
 class KibbieSerial:
     # Separator used between tokens in a message
@@ -70,9 +71,11 @@ class KibbieSerial:
                 for i,sample in enumerate(tokens[2:]):
                     self.set_current(i, float(sample))
                 
-                print(f"Updated current: {self.channel_current}")
+                if DEBUG_SERIAL_PRINT:
+                    print(f"Updated current: {self.channel_current}")
             else:
-                print(f'Unrecognized token for "{line}"')
+                if DEBUG_SERIAL_PRINT:
+                    print(f'Unrecognized token for "{line}"')
         except Exception as e:
             print(f"*** Error decoding serial: {e}")
 

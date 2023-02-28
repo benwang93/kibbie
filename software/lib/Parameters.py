@@ -16,3 +16,8 @@ DEBUG_SERVO_QUEUE = False # Set to True to print per-channel servo queue informa
 
 SKIP_SERVO_WAIT = not IS_RASPBERRY_PI and DEV_VIDEO_PROCESSING
 
+# Turn on debug print for serial
+DEBUG_SERIAL_PRINT = False
+
+# Turn on profiling of memory (debug print to console)
+PROFILE_MEMORY = True

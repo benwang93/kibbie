@@ -22,6 +22,7 @@ from flask import request
 import threading
 import argparse
 
+import gc
 import psutil
 
 ########################
@@ -70,6 +71,28 @@ web_video_queue = Queue()       # Kibbie -> Web server queue for images
 web_output_queue = Queue()      # Kibbie -> Web server queue for data
 web_command_queue = Queue()     # Web server -> Kibbie queue for commands
 
+
+########################
+# Memory usage profiling
+########################
+
+# Reference: https://stackoverflow.com/questions/49991234/flask-app-memory-leak-caused-by-each-api-call
+last_mem = {}
+def check_memory(action_label):
+    global last_mem
+    # Filter here for desired proceesses
+    if PROFILE_MEMORY and ("loop" in action_label):
+        pid = os.getpid()
+        process = psutil.Process(pid)
+        curr_pid_mem = process.memory_info().rss
+
+        if pid in last_mem:
+            prev_pid_mem = last_mem[pid]
+        else:
+            prev_pid_mem = 0
+
+        print(f'[{pid}] Memory Usage After {action_label}',curr_pid_mem/(1024**2),'MB','increase:',(curr_pid_mem - prev_pid_mem)/(1024**0),'B')
+        last_mem[pid] = curr_pid_mem
 
 ########################
 # Main class
@@ -628,6 +651,7 @@ class kibbie:
         previous_run_time_s = 0
         
         while(True):
+            check_memory("loop start")
             # Slow down to run periodically
             run_freq = 10 # Hz
             while (time.time() - previous_run_time_s) < (1 / run_freq):
@@ -643,11 +667,13 @@ class kibbie:
 
             # Display debug image
             self.refresh_image()
+            check_memory("loop refreshed image")
 
             # Update serial
             if self.kbSerial:
                 self.kbSerial.update()
                 self.sample_current()
+            check_memory("loop updated serial")
 
             # Dispense food state machine
             self.dispenser_state_machine()
@@ -655,6 +681,7 @@ class kibbie:
             # Check if there are any servo actions to perform
             # Includes door open/close and scheduled dispenser checks
             self.check_and_operate_servos()
+            check_memory("loop update servo commands")
 
             # Export current frame while door open, if enabled
             if self.export_frame_on_timer and self.next_export_frame_on_timer_time <= time.time():
@@ -669,7 +696,9 @@ class kibbie:
 
             # Update output to web server
             self.web_video_queue.put(self.images["corrals"])
+            check_memory("loop reported video to server")
             self.report_status_to_server()
+            check_memory("loop reported status to server")
 
             # Log any output from servos
             self.process_servo_log_queue()
@@ -677,6 +706,10 @@ class kibbie:
             # Handle key input
             if not self.handle_keyboard_input():
                 break
+                
+            check_memory("loop end")
+            # collected = gc.collect()
+            # check_memory(f"loop gc cleared {collected}")
         
         self.log("Kibbie exited main loop. Starting shutdown procedure...")
         
@@ -744,15 +777,6 @@ def servo_process( command_queue, log_queue):
 # Web server process
 ########################
 
-# Reference: https://stackoverflow.com/questions/49991234/flask-app-memory-leak-caused-by-each-api-call
-last_mem = 0
-def check_memory(action_str):
-    global last_mem
-    process = psutil.Process(os.getpid())
-    mem0 = process.memory_info().rss
-    print(f'Memory Usage After {action_str}',mem0/(1024**2),'MB','increase:',(mem0-last_mem)/(1024**2),'MB')
-    last_mem = mem0
-
 # initialize the output frame and a lock used to ensure thread-safe
 # exchanges of the output frames (useful when multiple browsers/tabs
 # are viewing the stream)
@@ -783,7 +807,7 @@ def index():
         def events():
             global status_dict, status_string, web_output_queue, status_lock
             while True:
-                check_memory("index1")
+                check_memory("text stream start")
                 with status_lock:
                     update = False
                     while not web_output_queue.empty():
@@ -799,6 +823,7 @@ def index():
                             status_string += f"{key}: {status_dict[key]}  "
 
                 yield f"data: {status_string}\n\n"
+                check_memory("vid stream end")
                 time.sleep(.1)  # an artificial delay
 
         return Response(events(), content_type='text/event-stream')
@@ -811,24 +836,19 @@ def generate():
     global outputFrame, lock, web_video_queue
     # loop over frames from the output stream
     while True:
-        check_memory("generate0")
+        check_memory("vid stream start")
         # wait until the lock is acquired
         with lock:
             last_image = None
 
-            check_memory("generate1")
             # Wait until we have an image
             while not web_video_queue.empty():
                 last_image = web_video_queue.get()
-            
-            check_memory("generate2")
 
             if last_image is not None:
                 # Update global now
                 outputFrame = cv2.putText(last_image, time.asctime(), (10, last_image.shape[0] - 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
-
-            check_memory("generate4")
 
             # check if the output frame is available, otherwise skip
             # the iteration of the loop
@@ -841,33 +861,13 @@ def generate():
             if not flag:
                 continue
         
-
-        check_memory("generate5")
         # yield the output frame in the byte format
         yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
             bytearray(encodedImage) + b'\r\n')
 
-        check_memory("generate6")
+        check_memory("vid stream end")
 
 outputFrame = None
-
-# def detect_motion():
-#     global outputFrame
-#     # loop over frames from the video stream
-#     while True:
-#         while not 
-#         # read the next frame from the video stream, resize it,
-#         # convert the frame to grayscale, and blur it
-#         frame = vs.read()
-#         frame = imutils.resize(frame, width=400)
-#         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#         # gray = cv2.GaussianBlur(gray, (7, 7), 0)
-#         # grab the current timestamp and draw it on the frame
-#         timestamp = datetime.datetime.now()
-#         with lock:
-#             outputFrame = cv2.putText(frame, timestamp.strftime(
-#                 "%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
-#                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
 @app.route("/video_feed")
 def video_feed():
