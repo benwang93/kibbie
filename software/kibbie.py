@@ -22,6 +22,8 @@ from flask import request
 import threading
 import argparse
 
+import psutil
+
 ########################
 # Constants
 ########################
@@ -742,6 +744,15 @@ def servo_process( command_queue, log_queue):
 # Web server process
 ########################
 
+# Reference: https://stackoverflow.com/questions/49991234/flask-app-memory-leak-caused-by-each-api-call
+last_mem = 0
+def check_memory(action_str):
+    global last_mem
+    process = psutil.Process(os.getpid())
+    mem0 = process.memory_info().rss
+    print(f'Memory Usage After {action_str}',mem0/(1024**2),'MB','increase:',(mem0-last_mem)/(1024**2),'MB')
+    last_mem = mem0
+
 # initialize the output frame and a lock used to ensure thread-safe
 # exchanges of the output frames (useful when multiple browsers/tabs
 # are viewing the stream)
@@ -772,6 +783,7 @@ def index():
         def events():
             global status_dict, status_string, web_output_queue, status_lock
             while True:
+                check_memory("index1")
                 with status_lock:
                     update = False
                     while not web_output_queue.empty():
@@ -799,18 +811,24 @@ def generate():
     global outputFrame, lock, web_video_queue
     # loop over frames from the output stream
     while True:
+        check_memory("generate0")
         # wait until the lock is acquired
         with lock:
             last_image = None
 
+            check_memory("generate1")
             # Wait until we have an image
             while not web_video_queue.empty():
                 last_image = web_video_queue.get()
             
+            check_memory("generate2")
+
             if last_image is not None:
                 # Update global now
                 outputFrame = cv2.putText(last_image, time.asctime(), (10, last_image.shape[0] - 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+
+            check_memory("generate4")
 
             # check if the output frame is available, otherwise skip
             # the iteration of the loop
@@ -823,9 +841,13 @@ def generate():
             if not flag:
                 continue
         
+
+        check_memory("generate5")
         # yield the output frame in the byte format
         yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
             bytearray(encodedImage) + b'\r\n')
+
+        check_memory("generate6")
 
 outputFrame = None
 
