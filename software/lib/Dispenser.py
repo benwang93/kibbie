@@ -52,7 +52,7 @@ class Dispenser:
         self.name = dispenser_name
         self.logfile = logfile
 
-        self.persistence = Persistence("dispenser")
+        self.persistence = Persistence(f"dispenser-{self.name}")
 
         self.state = DispenserState.IDLE
         self.dispenses_per_day = dispenses_per_day
