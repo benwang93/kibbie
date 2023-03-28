@@ -78,7 +78,8 @@ ANGLE_DOOR_LATCH_RIGHT_LOCKED = 60
 # Thus, any consecutive actions should (eg., door open -> dispense food) should wait ~3s in between when queueing
 NUM_SERVO_STEPS = 10 # Number of steps to open the door in 
 DELAY_SERVO_WAIT = 1 # second
-DELAY_SERVO_WAIT_STEPS = 0.2 # seconds; Special case for stepped servo operation (eg., time between door movements)
+DELAY_SERVO_WAIT_STEPS = 0.1 # seconds; Special case for stepped servo operation (eg., time between door movements)
+DELAY_SERVO_LATCH_ADDITIONAL = 0.5 # seconds; additional wait before latching servo for safety (so door doesn't jamb)
 
 DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo to move
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
@@ -223,7 +224,7 @@ class KibbieServoUtils:
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
 
         # Latch door after moving it
-        delta_t += DELAY_SERVO_WAIT_STEPS
+        delta_t += DELAY_SERVO_WAIT_STEPS + DELAY_SERVO_LATCH_ADDITIONAL
         self.channel_queue[latch_channel].append(servo_queue_item(delta_t, latch_angle_locked))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again

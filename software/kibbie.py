@@ -76,7 +76,7 @@ class kibbie:
         # Track a filtered number of pixels per corral per cat to make door less sensitive
         # Target something like 2s time constant?
         self.filtered_pixels = []
-        self.filter_ratio = 0.90 # (every cycle, this fraction of new value will come from previous value)
+        self.filter_ratio = 0.80 # (every cycle, this fraction of new value will come from previous value)
                                     # Use 0.95 for ~20 FPS
                                     # Use 0.90 for 10 FPS
 
@@ -735,7 +735,7 @@ if __name__=="__main__":
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_LEFT,
                     # Number of pixels required for a cat to be "present", unscaled
-                    "minPixelThreshold": 400 / 0.1, # (calibrated at 0.1 scale); Higher for Noodle due to ~100px of black from the aluminum rail
+                    "minPixelThreshold": 450 / 0.1, # (calibrated at 0.1 scale); Higher for Noodle due to ~100px of black from the aluminum rail
                     "dispensesPerDay": 5,
                     # Servo configuration
                     "dispenserServoChannel": Servo.CHANNEL_DISPENSER_LEFT,
@@ -749,7 +749,7 @@ if __name__=="__main__":
                 {
                     "name": "CAMI_R",
                     "allowedCats": ["Cami"],
-                    "dispensesPerDay": 2,
+                    "dispensesPerDay": 2.25,
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_RIGHT,
                     # Number of pixels required for a cat to be "present"
