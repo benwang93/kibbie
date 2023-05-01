@@ -50,8 +50,8 @@ ANGLE_DISPENSE_2 = ANGLE_NEUTRAL + 360 / NUM_PADDLES
 ANGLE_DOOR_LEFT_OPEN = 10       # Calibrated offset angle for fully retracted (open) door
 ANGLE_DOOR_LEFT_CLOSED = 140    # Calibrated offset angle for fully extended (closed) door
 
-ANGLE_DOOR_RIGHT_OPEN = 162     # Calibrated offset angle for fully retracted (open) door
-ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (closed) door
+ANGLE_DOOR_RIGHT_OPEN = 160     # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_RIGHT_CLOSED = 30    # Calibrated offset angle for fully extended (closed) door
 
 # Door lock servo angle definitions
 
@@ -65,7 +65,7 @@ ANGLE_DOOR_RIGHT_CLOSED = 32    # Calibrated offset angle for fully extended (cl
 ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 105
 ANGLE_DOOR_LATCH_LEFT_LOCKED = 127
 ANGLE_DOOR_LATCH_RIGHT_UNLOCKED = 75
-ANGLE_DOOR_LATCH_RIGHT_LOCKED = 60
+ANGLE_DOOR_LATCH_RIGHT_LOCKED = 61
 
 # Timing calibration
 # A typical servo actuation consists of 3 separate movements:
@@ -79,7 +79,7 @@ ANGLE_DOOR_LATCH_RIGHT_LOCKED = 60
 NUM_SERVO_STEPS = 10 # Number of steps to open the door in 
 DELAY_SERVO_WAIT = 1 # second
 DELAY_SERVO_WAIT_STEPS = 0.1 # seconds; Special case for stepped servo operation (eg., time between door movements)
-DELAY_SERVO_LATCH_ADDITIONAL = 0.5 # seconds; additional wait before latching servo for safety (so door doesn't jamb)
+DELAY_SERVO_LATCH_ADDITIONAL = 1.0 # seconds; additional wait before latching servo for safety (so door doesn't jamb)
 
 DELAY_DOOR_LATCH_SERVO_WAIT = 0.5 # seconds, time it takes for door latch servo to move
 DELAY_CONSECUTIVE_SERVO_WAIT = 3 * DELAY_SERVO_WAIT # seconds
