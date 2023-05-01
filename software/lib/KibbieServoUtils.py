@@ -47,7 +47,7 @@ ANGLE_DISPENSE_1 = ANGLE_NEUTRAL - 360 / NUM_PADDLES
 ANGLE_DISPENSE_2 = ANGLE_NEUTRAL + 360 / NUM_PADDLES
 
 # Door angle definitions
-ANGLE_DOOR_LEFT_OPEN = 10       # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_LEFT_OPEN = 8        # Calibrated offset angle for fully retracted (open) door
 ANGLE_DOOR_LEFT_CLOSED = 140    # Calibrated offset angle for fully extended (closed) door
 
 ANGLE_DOOR_RIGHT_OPEN = 160     # Calibrated offset angle for fully retracted (open) door
@@ -65,7 +65,7 @@ ANGLE_DOOR_RIGHT_CLOSED = 30    # Calibrated offset angle for fully extended (cl
 ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 105
 ANGLE_DOOR_LATCH_LEFT_LOCKED = 127
 ANGLE_DOOR_LATCH_RIGHT_UNLOCKED = 75
-ANGLE_DOOR_LATCH_RIGHT_LOCKED = 62
+ANGLE_DOOR_LATCH_RIGHT_LOCKED = 65
 
 # Timing calibration
 # A typical servo actuation consists of 3 separate movements:
@@ -223,8 +223,16 @@ class KibbieServoUtils:
         delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[channel].append(servo_queue_item(delta_t, target_angle))
 
-        # Latch door after moving it
+        # Latch door after moving it (also overshoot and return)
         delta_t += DELAY_SERVO_WAIT_STEPS + DELAY_SERVO_LATCH_ADDITIONAL
+        if latch_angle_locked < latch_angle_unlocked:
+            # Servo moving from high to low, so overshoot by going to a lower angle
+            latch_target_angle_overshoot = latch_angle_locked - SERVO_OVERSHOOT_ANGLE_DEGREES
+        else:
+            # Servo moving from low to high, so overshoot by going to a higher angle
+            latch_target_angle_overshoot = latch_angle_locked + SERVO_OVERSHOOT_ANGLE_DEGREES
+        self.channel_queue[latch_channel].append(servo_queue_item(delta_t, latch_target_angle_overshoot))
+        delta_t += DELAY_SERVO_WAIT_STEPS
         self.channel_queue[latch_channel].append(servo_queue_item(delta_t, latch_angle_locked))
 
         # Set the angle ahead of time so that we don't double queue if we try to go to this angle again
