@@ -65,7 +65,7 @@ ANGLE_DOOR_RIGHT_CLOSED = 30    # Calibrated offset angle for fully extended (cl
 ANGLE_DOOR_LATCH_LEFT_UNLOCKED = 105
 ANGLE_DOOR_LATCH_LEFT_LOCKED = 127
 ANGLE_DOOR_LATCH_RIGHT_UNLOCKED = 75
-ANGLE_DOOR_LATCH_RIGHT_LOCKED = 61
+ANGLE_DOOR_LATCH_RIGHT_LOCKED = 62
 
 # Timing calibration
 # A typical servo actuation consists of 3 separate movements:
