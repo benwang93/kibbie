@@ -736,7 +736,7 @@ if __name__=="__main__":
                     "mask": MASK_REGION_LEFT,
                     # Number of pixels required for a cat to be "present", unscaled
                     "minPixelThreshold": 450 / 0.1, # (calibrated at 0.1 scale); Higher for Noodle due to ~100px of black from the aluminum rail
-                    "dispensesPerDay": 5,
+                    "dispensesPerDay": 4.5,
                     # Servo configuration
                     "dispenserServoChannel": Servo.CHANNEL_DISPENSER_LEFT,
                     "doorServoChannel": Servo.CHANNEL_DOOR_LEFT,
