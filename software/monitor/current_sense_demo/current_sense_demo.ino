@@ -21,6 +21,8 @@
 
 */
 
+#include <limits.h>
+
 // Set to true to turn on current debug message (raw sample, unfiltered voltage, unfiltered current)
 const bool ENABLE_CURRENT_DEBUG = false;
 
@@ -99,6 +101,40 @@ void setup() {
   Serial.begin(115200);
 
   // Serial.println("Starting current measurements...");
+
+  // Perform unit tests here
+  if (!unitTestsPass()) {
+    Serial.println("*** TEST FAILURE DETECTED! Holding the program captive... ***");
+    while (1);
+  }
+}
+
+// Helper function similar to an assertion that prints the message if `testPassed` is false
+bool verifyTest(bool testPassed, String message) {
+  if (!testPassed) {
+    Serial.println("*** Test failed: " + message);
+  }
+  return testPassed;
+}
+
+bool unitTestsPass() {
+  bool testsPassed = true;
+
+  // Tests for `isTimeToUpdateEfuses(unsigned long nextCalculationTime, unsigned long currentTime)`
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(EFUSE_CALC_PERIOD_MS, 0)                         == false, "nominal 0");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(EFUSE_CALC_PERIOD_MS, EFUSE_CALC_PERIOD_MS - 1)  == false, "nominal -1");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(EFUSE_CALC_PERIOD_MS, EFUSE_CALC_PERIOD_MS)      == true,  "nominal ==");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(EFUSE_CALC_PERIOD_MS, EFUSE_CALC_PERIOD_MS + 1)  == true,  "nominal +1");
+
+  // The following test the case where the clock is 1 cycle from rolling over
+  unsigned long rolloverThreshold = ULONG_MAX - EFUSE_CALC_PERIOD_MS;
+  unsigned long timerThreshold = rolloverThreshold + 10;
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(timerThreshold, timerThreshold - EFUSE_CALC_PERIOD_MS + 1) == false, "1 cycle from rollover start");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(timerThreshold, timerThreshold - 1)                        == false, "1 cycle from rollover -1");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(timerThreshold, timerThreshold)                            == true, "1 cycle from rollover ==");
+  testsPassed &= verifyTest(isTimeToUpdateEfuses(timerThreshold, timerThreshold + 1)                        == true, "1 cycle from rollover +1");
+
+  return testsPassed;
 }
 
 void sampleAndFilter(uint8_t channel) {
@@ -221,6 +257,14 @@ void reportEfuseStatusOnSerial(bool debug=false) {
   Serial.println(output);
 }
 
+// Given the next schedule efuse calculation time and current time in ms, returns true if efuses should be updated
+bool isTimeToUpdateEfuses(unsigned long nextCalculationTime, unsigned long currentTime) {
+  return (currentTime >= nextCalculationTime) && (            // Current time is past the trigger time, AND
+            (nextCalculationTime >= EFUSE_CALC_PERIOD_MS) ||  // Nominal case - timer has not rolled over
+            (currentTime < EFUSE_CALC_PERIOD_MS)              // Special case - else if timer rolled over, we also require that currentTime has rolled over
+         );
+}
+
 // the loop routine runs over and over again forever:
 void loop() {
   // Sample and filter current
@@ -229,8 +273,9 @@ void loop() {
   }
 
   // Periodically update efuse status
+  // Additionally account for rollover of the clock
   unsigned long currentTime = millis();
-  if (currentTime >= nextEfuseCalcTime) {
+  if (isTimeToUpdateEfuses(currentTime, millis())) {
     for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
       updateEfuse(channel);
     }
