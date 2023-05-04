@@ -13,6 +13,15 @@ from lib.KibbieSerial import KibbieSerial
 
 from lib.Parameters import *
 
+# Imports for web server
+# from imutils.video import VideoStream
+from flask import Response
+from flask import Flask
+from flask import render_template
+from flask import request
+import threading
+import argparse
+
 ########################
 # Constants
 ########################
@@ -48,6 +57,17 @@ MASK_REGION_LEFT = [[356.0, 376.0], [350.0, 20.0], [626.0, 22.0], [630.0, 296.0]
 SERVO_PROCESS_PERIOD_S = 0.05 # s, 20 Hz
 
 
+########################
+# Globals
+########################
+
+# Set up shared queues
+servo_command_queue = Queue()   # Kibbie -> Servo queue for commands
+servo_log_queue = Queue()       # Servo -> Kibbie queue for logs to write to disk
+web_video_queue = Queue()       # Kibbie -> Web server queue for images
+web_output_queue = Queue()      # Kibbie -> Web server queue for data
+web_command_queue = Queue()     # Web server -> Kibbie queue for commands
+
 
 ########################
 # Main class
@@ -57,7 +77,7 @@ class kibbie:
     # config: config information, including (per cat):
     #   - Mask polygon (list of [x, y] points describing polygon on UNSCALED image)
     #   - Dispenses per day (float)
-    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue) -> None:
+    def __init__(self, camera, log_filename, config, servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue) -> None:
         # Open log file (append mode)
         self.logfile = open(log_filename, 'a')
         self.log("=====================================")
@@ -163,6 +183,16 @@ class kibbie:
         # self.servo_process_handle.start()
         self.servo_command_queue = servo_command_queue      # Kibbie -> Servo queue for commands
         self.servo_log_queue     = servo_log_queue          # Servo -> Kibbie queue for logs to write to disk
+        self.web_video_queue     = web_video_queue          # Kibbie -> web server queue for images
+        self.web_output_queue    = web_output_queue         # Kibbie -> web server queue for data
+        self.web_command_queue   = web_command_queue        # Web server -> Kibbie queue for commands
+
+        # Track efuse status
+        self.previous_efuse_status = []
+
+        # Initialize servo controller
+        self.servo = Servo.KibbieServoUtils(self.logfile)
+        self.servo.init_servos()
 
         self.print_help()
     
@@ -574,6 +604,38 @@ class kibbie:
 
         self.fig.savefig(filepath)
         self.log(f"Saved plot of current to {filepath}")
+    
+    # Populate status queue to report to web page
+    def report_status_to_server(self):
+        # Report door open status
+        for i,corral_open in enumerate(self.corral_door_open):
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} open', str(corral_open)))
+
+        # Report current
+        for i,channel_current in enumerate(self.current_history):
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} current (A)', str(channel_current)))
+
+        # Report next dispense
+        for i,dispenser in enumerate(self.corral_dispensers):
+            next_dispense = time.asctime(time.localtime(dispenser.persistence.get('next_dispense_time')))
+            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} next dispense', str(next_dispense)))
+        
+        # TODO: Report efuse status
+
+    def update_operation_state(self):
+        if self.kbSerial is None:
+            return
+            
+        # Check for number of operational channels
+        num_operation_channels = 0
+        for i,channel_efuse_status in enumerate(self.kbSerial.channel_efuse_status):
+
+            # Check for rising edge
+            if (not self.previous_efuse_status[i].fuse_blown and channel_efuse_status.fuse_blown):
+                self.log(f"*** Efuse blown for channel {i} with {channel_efuse_status.amp_seconds}")
+
+            # Save as previous
+            self.previous_efuse_status[i] = channel_efuse_status
 
     def main(self):
         # Open video capture object
@@ -606,6 +668,9 @@ class kibbie:
             if self.kbSerial:
                 self.kbSerial.update()
                 self.sample_current()
+            
+            # Check if we need to change operation mode due to efuse state
+            self.update_operation_state()
 
             # Dispense food state machine
             self.dispenser_state_machine()
@@ -624,6 +689,10 @@ class kibbie:
 
                 self.export_current_frame(postfix=f"open{open_corrals_str}", annotated_only=True)
                 self.next_export_frame_on_timer_time = time.time() + self.config["saveSnapshotWhileDoorOpenPeriodSeconds"]
+
+            # Update output to web server
+            self.web_video_queue.put(self.images["corrals"])
+            self.report_status_to_server()
 
             # Log any output from servos
             self.process_servo_log_queue()
@@ -695,20 +764,130 @@ def servo_process( command_queue, log_queue):
 
 
 ########################
-# Main
+# Web server process
 ########################
-if __name__=="__main__":
-    # Set up servo process
-    servo_command_queue = Queue()      # Kibbie -> Servo queue for commands
-    servo_log_queue = Queue()  # Servo -> Kibbie queue for logs to write to disk
-    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue,))
-    servo_process_handle.start()
+
+# initialize the output frame and a lock used to ensure thread-safe
+# exchanges of the output frames (useful when multiple browsers/tabs
+# are viewing the stream)
+outputFrame = None
+left_current = None
+right_current = None
+left_next_dispense_time = None
+right_next_dispense_time = None
+lock = threading.Lock()
+# initialize a flask object
+app = Flask(__name__)
+# initialize the video stream and allow the camera sensor to
+# warmup
+#vs = VideoStream(usePiCamera=1).start()
+# vs = VideoStream(src=0).start()
+# time.sleep(2.0)
+
+# String used to store status output for streaming
+status_dict = {}
+status_string = "STATUS UNAVAILABLE..."
+status_lock = threading.Lock()
+
+@app.route("/")
+def index():
+    # Stream status text
+    # Reference: https://stackoverflow.com/questions/13386681/streaming-data-with-python-and-flask
+    if request.headers.get('accept') == 'text/event-stream':
+        def events():
+            global status_dict, status_string, web_output_queue, status_lock
+            while True:
+                with status_lock:
+                    update = False
+                    while not web_output_queue.empty():
+                        # An array where elt 0 is key and elt 1 is value
+                        (status_key,status_value) = web_output_queue.get()
+                        status_dict[status_key] = status_value
+                        update = True
+                    
+                    if update:
+                        # Build status string from status dict
+                        status_string = ""
+                        for key in status_dict:
+                            status_string += f"{key}: {status_dict[key]}  "
+
+                yield f"data: {status_string}\n\n"
+                time.sleep(.1)  # an artificial delay
+
+        return Response(events(), content_type='text/event-stream')
+    
+    # return the rendered template
+    return render_template("index.html")
+
+def generate():
+    # grab global references to the output frame and lock variables
+    global outputFrame, lock, web_video_queue
+    # loop over frames from the output stream
+    while True:
+        # wait until the lock is acquired
+        with lock:
+            last_image = None
+
+            # Wait until we have an image
+            while not web_video_queue.empty():
+                last_image = web_video_queue.get()
+            
+            if last_image is not None:
+                # Update global now
+                outputFrame = cv2.putText(last_image, time.asctime(), (10, last_image.shape[0] - 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+
+            # check if the output frame is available, otherwise skip
+            # the iteration of the loop
+            if outputFrame is None:
+                continue
+
+            # encode the frame in JPEG format
+            (flag, encodedImage) = cv2.imencode(".jpg", outputFrame)
+            # ensure the frame was successfully encoded
+            if not flag:
+                continue
+        
+        # yield the output frame in the byte format
+        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
+            bytearray(encodedImage) + b'\r\n')
+
+outputFrame = None
+
+# def detect_motion():
+#     global outputFrame
+#     # loop over frames from the video stream
+#     while True:
+#         while not 
+#         # read the next frame from the video stream, resize it,
+#         # convert the frame to grayscale, and blur it
+#         frame = vs.read()
+#         frame = imutils.resize(frame, width=400)
+#         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#         # gray = cv2.GaussianBlur(gray, (7, 7), 0)
+#         # grab the current timestamp and draw it on the frame
+#         timestamp = datetime.datetime.now()
+#         with lock:
+#             outputFrame = cv2.putText(frame, timestamp.strftime(
+#                 "%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10),
+#                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+
+@app.route("/video_feed")
+def video_feed():
+    # return the response generated along with the specific media
+    # type (mime type)
+    return Response(generate(),
+        mimetype = "multipart/x-mixed-replace; boundary=frame")
+
+
+########################
+# Kibbie process
+########################
+
+def kibbie_process(servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue):
     
     kb = kibbie(
-        # camera="software/images/white_background_low_light_both_cats.mp4",    # Playback for dev (white background)
-        # camera="software/images/20230114-kibbie_feeder.avi",                  # Playback for dev (real floor)
-        # camera="software/images/20230116-light_day.avi",                        # Playback for dev (real floor, cloudy day with lamp on)
-        camera=0,                                                               # Real camera
+        camera=CAMERA_DEVICE,
         log_filename="kibbie.log",
         config={
             "enableWhiteBalance": True,
@@ -767,8 +946,41 @@ if __name__=="__main__":
         },
         servo_command_queue=servo_command_queue,
         servo_log_queue=servo_log_queue,
+        web_video_queue=web_video_queue,
+        web_output_queue=web_output_queue,
+        web_command_queue=web_command_queue,
     )
     kb.main()
+
+########################
+# Main
+########################
+if __name__=="__main__":
+    # construct the argument parser and parse command line arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--ip", type=str, default="0.0.0.0",
+        help="ip address of the device")
+    ap.add_argument("-o", "--port", type=int, default=8080,
+        help="ephemeral port number of the server (1024 to 65535)")
+    ap.add_argument("-f", "--frame-count", type=int, default=32,
+        help="# of frames used to construct the background model")
+    args = vars(ap.parse_args())
+    # start a thread that will perform motion detection
+    # t = threading.Thread(target=detect_motion, )
+    # t.daemon = True
+    # t.start()
+
+    # Set up kibbie process
+    kibbie_process_handle = Process(target=kibbie_process, args=(servo_command_queue, servo_log_queue, web_video_queue, web_output_queue, web_command_queue))
+    kibbie_process_handle.start()
+
+    # Set up servo process
+    servo_process_handle = Process(target=servo_process, args=(servo_command_queue, servo_log_queue,))
+    servo_process_handle.start()
+
+    # start the flask app
+    app.run(host=args["ip"], port=args["port"], debug=True, threaded=True, use_reloader=False)
     
     # Wait for process to complete here
+    kibbie_process_handle.join()
     servo_process_handle.join()
