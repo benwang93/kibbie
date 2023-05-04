@@ -1,23 +1,32 @@
 /*
-  Kibbie Current Sense Demo
+  # Kibbie Current Sense Demo
 
   Outputs measurements in a comma-separated format:
 
     <opcode>,<timestamp>,<value1>,<value2>,...
   
-  Supported opcodes (TX):
+  ## Supported opcodes (TX):
   - "I": Current measurement
   - "F": EFuse status (true = open/error, false = closed/OK)
   
-  Supported opcodes (RX):
-  
-  Current measurements (exponentially filtered):
+  ### Current measurements (exponentially filtered):
 
     I,<timestamp>,<ch0 current (A)>,<ch1 current (A)>
   
-  Efuse open status
+  ### Efuse open status
 
     F,<timestamp>,<ch0 amp-seconds>,<ch0 open>,<ch1 amp-seconds>,<ch1 open>
+  
+  ## Supported opcodes (RX):
+  - "R": Relay command
+
+  ### Relay command:
+  - Actual relay (efuse) state will be dependent upon serial command AND the efuse status
+  - On boot, default relay state will be open
+
+    R,<ch0 close 0/1>,<ch1 close 0/1>
+    
+  For example, to close ch0 and open ch1: "R,1,0"
 
 */
 
@@ -78,6 +87,13 @@ float filteredCurrentWindowSamples[NUM_CURRENT_CHANNELS][NUM_CURRENT_WINDOW_SAMP
 unsigned int nextFilteredCurrentWindowSamples[NUM_CURRENT_CHANNELS] = {0, 0};         // Next index in circular buffer to pop
 bool efuseOpenStatus[NUM_CURRENT_CHANNELS] = {false, false};                          // true for blown, false for closed
 
+// Array to store per-channel relay requests
+// Final relay state is 
+float relayRequestClosed[NUM_CURRENT_CHANNELS] = {false, false};
+
+// Serial receive buffer
+String buffer;
+
 // DC offset due to relays consuming power
 const float CURRENT_OFFSET_PER_RELAY_ON_AMPS = 0.03; // A, how much we need to add to the current value per relay that's on
 
@@ -90,15 +106,18 @@ void setup() {
     }
   }
 
-  // Enable efuses
+  // Disable efuses by default
   for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
     uint8_t pin = EFUSE_CHANNEL_PINS[channel];
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, RELAY_ON);
+    digitalWrite(pin, RELAY_OFF);
   }
 
   // initialize serial communication at 9600 bits per second:
   Serial.begin(115200);
+
+  // Use a short timeout to make sure we don't hold up processing
+  Serial.setTimeout(1);
 
   // Serial.println("Starting current measurements...");
 
@@ -157,6 +176,38 @@ bool unitTestsPass() {
   return testsPassed;
 }
 
+// Process incoming serial commands
+void processSerialCommands() {
+    while (Serial.available()) {
+    char nextByte = Serial.read();
+
+    if (nextByte == '\n') {
+      // Process
+      // Attempt to parse
+      if (buffer.length() >= 1) {
+        char opcode = buffer[0];
+        switch (opcode) {
+          case 'R':
+            if ((buffer.length() == 5) && (buffer[1] == ',') && (buffer[3] == ',')) {
+              relayRequestClosed[0] = (buffer[2] == '1');
+              relayRequestClosed[1] = (buffer[4] == '1');
+            } else {
+              Serial.println("*** Invalid command for opcode R:" + buffer);
+            }
+            break;
+          default:
+            Serial.println("*** Unrecognized opcode:" + String(opcode) + " for cmd:\"" + buffer + "\"");
+        }
+
+        buffer = "";
+      }
+    } else {
+      // Concatenate
+      buffer += String(nextByte);
+    }
+  }
+}
+
 void sampleAndFilter(uint8_t channel) {
   uint8_t pin = CURRENT_CHANNEL_PINS[channel];
 
@@ -202,7 +253,6 @@ void updateEfuse(uint8_t channel) {
     if (filteredCurrentIntegralOverWindow[channel] > EFUSE_AMP_SECONDS_THRESHOLD) {
       // Blow the fuse and latch
       efuseOpenStatus[channel] = true;
-      digitalWrite(EFUSE_CHANNEL_PINS[channel], RELAY_OFF);
     }
 
     // Increment index
@@ -287,6 +337,9 @@ bool isTimeToUpdateEfuses(unsigned long nextCalculationTime, unsigned long curre
 
 // the loop routine runs over and over again forever:
 void loop() {
+  // Check for any commands from kibbie via serial
+  processSerialCommands();
+
   // Sample and filter current
   for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
     sampleAndFilter(channel);
@@ -315,6 +368,15 @@ void loop() {
     }
 
     nextOutputTime = currentTime + SERIAL_OUTPUT_PERIOD_MS;
+  }
+
+  // Set relays
+  for (int channel = 0; channel < NUM_CURRENT_CHANNELS; channel++) {
+    if (efuseOpenStatus[channel] || !relayRequestClosed[channel]) {
+      digitalWrite(EFUSE_CHANNEL_PINS[channel], RELAY_OFF);
+    } else {
+      digitalWrite(EFUSE_CHANNEL_PINS[channel], RELAY_ON);
+    }
   }
 }
 
