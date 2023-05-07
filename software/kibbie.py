@@ -611,14 +611,23 @@ class kibbie:
         for i,corral_open in enumerate(self.corral_door_open):
             self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} open', str(corral_open)))
 
-        # Report current
-        for i,channel_current in enumerate(self.current_history):
-            self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} current (A)', str(channel_current)))
-
         # Report next dispense
         for i,dispenser in enumerate(self.corral_dispensers):
             next_dispense = time.asctime(time.localtime(dispenser.persistence.get('next_dispense_time')))
+            ## DEBUG
+            # print(f'[report_status_to_server] Next dispense i={i}')
+            # print(f'[report_status_to_server] Next dispense next_dispense={next_dispense}')
+            # print(f'[report_status_to_server] Next dispense self.config["corrals"][i]["name"]={self.config["corrals"][i]["name"]}')
             self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} next dispense', str(next_dispense)))
+
+        # Report current
+        # print(f'Number of current channels:{len(self.current_history)}: {self.current_history}')
+        for i,channel_current in enumerate(self.current_history):
+            ## DEBUG
+            # print(f'[report_status_to_server] current i={i}')
+            # print(f'[report_status_to_server] current channel_current={channel_current}')
+            if len(channel_current) >= 1:
+                self.web_output_queue.put((f'{self.config["corrals"][i]["name"]} current (A)', str(channel_current[-1])))
         
         # TODO: Report efuse status
 
@@ -631,11 +640,14 @@ class kibbie:
         for i,channel_efuse_status in enumerate(self.kbSerial.channel_efuse_status):
 
             # Check for rising edge
-            if (not self.previous_efuse_status[i].fuse_blown and channel_efuse_status.fuse_blown):
+            if (i < len(self.previous_efuse_status) and not self.previous_efuse_status[i].fuse_blown and channel_efuse_status.fuse_blown):
                 self.log(f"*** Efuse blown for channel {i} with {channel_efuse_status.amp_seconds}")
 
-            # Save as previous
-            self.previous_efuse_status[i] = channel_efuse_status
+                # Save as previous
+                self.previous_efuse_status[i] = channel_efuse_status
+            else:
+                # Create a new entry
+                self.previous_efuse_status.append(channel_efuse_status)
 
     def main(self):
         # Open video capture object

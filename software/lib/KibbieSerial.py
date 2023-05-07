@@ -14,6 +14,12 @@ class EfuseStatus:
     def __init__(self, amp_seconds=0.0, fuse_blown=False):
         self.amp_seconds = amp_seconds
         self.fuse_blown = fuse_blown
+    
+    def __repr__(self):
+       return self.__str__()
+
+    def __str__(self):
+        return f"[A*s:{self.amp_seconds} blown:{self.fuse_blown}]"
 
 class KibbieSerial:
     # Separator used between tokens in a message
@@ -56,6 +62,7 @@ class KibbieSerial:
             return 0
     
     def set_current(self, channel, current):
+        # print(f"set_current(channel={channel}, current={current})")
         if channel < len(self.channel_current):
             self.channel_current[channel] = current
         elif channel == len(self.channel_current):
@@ -93,15 +100,13 @@ class KibbieSerial:
                 for i,sample in enumerate(tokens[2:]):
                     self.set_current(i, float(sample))
                 
-                print(f"Updated current: {self.channel_current}")
+                # print(f"Updated current: {self.channel_current}")
             elif opcode == "F":
                 # Efuse status
-                for i,sample in enumerate(tokens[2:]):
-                    self.set_current(i, float(sample))
                 self.set_efuse_status(0, float(tokens[2]), bool(tokens[3]))
                 self.set_efuse_status(1, float(tokens[4]), bool(tokens[5]))
                 
-                print(f"Updated efuse status: {self.channel_efuse_status}")
+                # print(f"Updated efuse status: {self.channel_efuse_status}")
             else:
                 print(f'Unrecognized token for "{line}"')
         except Exception as e:
