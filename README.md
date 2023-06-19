@@ -5,10 +5,21 @@ Automated kibble dispenser
 ## Setup
 
 ### Raspberry Pi (embedded)
-1. Raspberry Pi with Raspian
+
+Hardware requirements:
+
+- Raspberry Pi 3 B+
+- 64 GB MicroSD card with Raspbian (see https://www.raspberrypi.com/software/ for installation instructions)
+
+Instructions:
+
+1. On Raspberry Pi with Raspian, clone this repo to `/home/<username>/`
 2. Increase swap size from 100MB to something big (2048MB?). See https://peppe8o.com/set-raspberry-pi-swap-memory/
 3. Install required python packages by running `setup_raspberrypi.sh`
-4. Set up kibbie's run.sh to run on startup
+4. Enable I2C on Pi via the Pi configuration tool. For more information, see https://learn.adafruit.com/adafruits-raspberry-pi-lesson-4-gpio-setup/configuring-i2c
+5. Set up kibbie's run.sh to run on startup
+
+Additionally, set up SSH and VNC on the Pi.
 
 #### Python package setup
 
@@ -21,6 +32,46 @@ sudo apt-get install build-essential cmake pkg-config libjpeg-dev libtiff5-dev l
 
 pip install opencv-python==4.5.3.56
 ```
+
+#### Configuring swap memory
+
+Copied from https://peppe8o.com/set-raspberry-pi-swap-memory/ (and tweaked the memory requirement to 2 GB)
+
+Disable swap:
+
+```
+sudo dphys-swapfile swapoff
+```
+
+Change swap size in dphys-swapfile. Open this file for editing:
+
+```
+sudo nano /etc/dphys-swapfile
+```
+
+Identify CONF_SWAPSIZE parameter and change according to your needs. For example, I will change it to:
+
+```
+CONF_SWAPSIZE=2048
+```
+
+Exit and save. Enable swap and restart dphys service:
+
+```
+sudo dphys-swapfile swapon
+sudo systemctl restart dphys-swapfile.service
+```
+
+Check that swap has changed value:
+
+```
+pi@raspberrypi:~ $ free
+               total        used        free      shared  buff/cache   available
+ Mem:         374964       36648      223092        2708      115224      282916
+ Swap:        511996           0      511996
+```
+
+This will persist also after Raspberry PI reboot.
 
 #### Configuring for run on startup
 
@@ -75,4 +126,10 @@ See the `servo_demo` folder. Parts needed:
 - `hardware\prints\servo_coupler_v1\Servo_coupler_v1.ctb`
 
 Run script `servo_demo\kibbie_dispenser_demo.py`
+
+## Other info
+
+- [MakerFocus PWM Servo Motor Driver IIC Module 16 Channel PWM Outputs 12 Bit Resolution I2C Compatible with Raspberry Pi 4 3B+ 3B Zero/Zero W/Zero WH and Jetson Nano on Amazon](https://www.amazon.com/gp/product/B07H9ZTWNC)
+- [Adafruit I2C configuration guide](https://learn.adafruit.com/adafruits-raspberry-pi-lesson-4-gpio-setup/configuring-i2c)
+- [Adafruit Servo Hat instructions](https://learn.adafruit.com/adafruit-16-channel-pwm-servo-hat-for-raspberry-pi/attach-and-test-the-hat)
 
