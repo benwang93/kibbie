@@ -6,12 +6,13 @@ Automated kibble dispenser
 
 ### Raspberry Pi (embedded)
 1. Raspberry Pi with Raspian
-2. Install required python packages by running `setup_raspberrypi.sh`
-3. Set up kibbie's run.sh to run on startup
+2. Increase swap size from 100MB to something big (2048MB?). See https://peppe8o.com/set-raspberry-pi-swap-memory/
+3. Install required python packages by running `setup_raspberrypi.sh`
+4. Set up kibbie's run.sh to run on startup
 
 #### Python package setup
 
-To install OpenCV on Raspberry Pi 3 Model B+, followed these instructions: https://raspberrypi-guide.github.io/programming/install-opencv and installed it in a virtualenv
+To install OpenCV on Raspberry Pi 3 Model B+, followed these instructions: https://raspberrypi-guide.github.io/programming/install-opencv and installed it in a virtualenv. Note that these are part of the `setup_raspberrypi.sh` script.
 
 ```
 . venv/bin/activate
