@@ -16,6 +16,7 @@ class Persistence:
     def __init__(self, id):
         self.id = id
         self.filepath = os.path.join(PERSISTENCE_FOLDER, id + ".json")
+        self.is_dirty = False
 
         # The main dictionary for this persistence object
         self.data = {}
@@ -44,12 +45,24 @@ class Persistence:
             return None
     
     def set(self, key, value):
-        key_str = str(key)
-        self.data[key_str] = value
+        self.setWithoutPersist(key, value)
 
-        # Persist to file
-        self.persist()
+        # Persist to file if it has changed or is new
+        if self.is_dirty:
+            self.persist()
+            self.is_dirty = False
     
     # Use this method if updating a lot of fields at once, then call persist afterwards
     def setWithoutPersist(self, key, value):
-        self.data[key] = value
+        key_str = str(key)
+
+        if key_str in self.data:
+            prev_value = self.data[key_str]
+        else:
+            prev_value = None
+
+        self.data[key_str] = value
+
+        if prev_value != value:
+            self.is_dirty = True
+
