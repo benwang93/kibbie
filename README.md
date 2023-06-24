@@ -33,7 +33,7 @@ sudo apt-get install build-essential cmake pkg-config libjpeg-dev libtiff5-dev l
 pip install opencv-python==4.5.3.56
 ```
 
-#### Configuring swap memory
+#### Configuring swap memory (for devices with < 2 GB RAM)
 
 Copied from https://peppe8o.com/set-raspberry-pi-swap-memory/ (and tweaked the memory requirement to 2 GB)
 
