@@ -47,8 +47,8 @@ ANGLE_DISPENSE_1 = ANGLE_NEUTRAL - 360 / NUM_PADDLES
 ANGLE_DISPENSE_2 = ANGLE_NEUTRAL + 360 / NUM_PADDLES
 
 # Door angle definitions
-ANGLE_DOOR_LEFT_OPEN = 8        # Calibrated offset angle for fully retracted (open) door
-ANGLE_DOOR_LEFT_CLOSED = 140    # Calibrated offset angle for fully extended (closed) door
+ANGLE_DOOR_LEFT_OPEN = 10       # Calibrated offset angle for fully retracted (open) door
+ANGLE_DOOR_LEFT_CLOSED = 142    # Calibrated offset angle for fully extended (closed) door
 
 ANGLE_DOOR_RIGHT_OPEN = 160     # Calibrated offset angle for fully retracted (open) door
 ANGLE_DOOR_RIGHT_CLOSED = 30    # Calibrated offset angle for fully extended (closed) door
