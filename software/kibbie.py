@@ -736,7 +736,7 @@ if __name__=="__main__":
                     "mask": MASK_REGION_LEFT,
                     # Number of pixels required for a cat to be "present", unscaled
                     "minPixelThreshold": 450 / 0.1, # (calibrated at 0.1 scale); Higher for Noodle due to ~100px of black from the aluminum rail
-                    "dispensesPerDay": 3.00, #2.75,
+                    "dispensesPerDay": 3.55, # 3.75, # 4.00, #2.75,
                     # Servo configuration
                     "dispenserServoChannel": Servo.CHANNEL_DISPENSER_LEFT,
                     "doorServoChannel": Servo.CHANNEL_DOOR_LEFT,
@@ -749,7 +749,7 @@ if __name__=="__main__":
                 {
                     "name": "CAMI_R",
                     "allowedCats": ["Cami"],
-                    "dispensesPerDay": 2.5,
+                    "dispensesPerDay": 2.85, #2.75, # 2.5,
                     # Use the "unscaled" coordinates from `camera_calibration.py`
                     "mask": MASK_REGION_RIGHT,
                     # Number of pixels required for a cat to be "present"
